@@ -1,0 +1,20 @@
+# SCENE HAUS — Netlify site config example (kept in sync with root netlify.toml)
+#
+# Netlify UI values:
+#   Base directory:      (blank)
+#   Package directory:   (blank)
+#   Build command:       npm run export:web
+#   Publish directory:   dist
+#   Functions directory: (default / blank)
+
+[build]
+  command = "npm run export:web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

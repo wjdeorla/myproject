@@ -1,0 +1,41 @@
+# SCENE HAUS — Render Blueprint example (not linked yet)
+# Docs: https://render.com/docs/blueprint-spec
+#
+# When you add a backend repo/folder (e.g. /server), wire rootDir + build/start.
+# This file is a template only until the API exists.
+
+services:
+  - type: web
+    name: scene-haus-api
+    runtime: node
+    plan: free
+    region: singapore
+    # rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DEFAULT_BRANCH_CODE
+        value: hongdae
+      - key: RESERVATION_TIMEZONE
+        value: Asia/Seoul
+      - key: LOG_LEVEL
+        value: info

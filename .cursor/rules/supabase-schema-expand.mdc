@@ -1,0 +1,48 @@
+---
+description: Prefer expanding tables/columns over narrow schemas that block features
+alwaysApply: true
+---
+
+# SCENE HAUS DB schema policy
+
+When modeling or changing Supabase schema for this app, **prefer adding columns and tables over keeping a minimal schema**.
+
+## Rules
+
+1. If a feature needs a field that is not on the table, **add a column** instead of stuffing JSON or inventing workarounds.
+2. If a concept has its own lifecycle (reservation, pass, original clip, edit job, like, bookmark), **give it a table**.
+3. Keep denormalized display fields when the UI shows them (`music_label` + `music_title`/`music_artist`, `view_label` + `view_count`).
+4. Use `jsonb` only for truly open-ended metadata, never as an excuse to avoid real columns.
+5. When unsure between “too many cols” vs “blocked later”, **choose more cols/tables**.
+6. Every schema change for product features should ship as a Supabase migration.
+
+## Domains to keep first-class
+
+- Auth/profile, follows
+- Branches, booth types, booth rooms, time slots
+- Reservations, SCENE PASS
+- Challenges, feed posts, likes/comments/bookmarks
+- User shorts, saved challenges
+- Studio originals, edit jobs, notifications
+
+## Bad vs good
+
+```sql
+-- BAD: too narrow, blocks QR / preset / kiosk work
+create table scene_passes (id uuid primary key, reservation_id uuid);
+
+-- GOOD: wide enough for current + near-term product
+create table scene_passes (
+  id uuid primary key,
+  reservation_id uuid not null,
+  user_id uuid not null,
+  pass_code text not null,
+  qr_payload text not null,
+  status text not null,
+  booth_label text,
+  preset_label text,
+  scanned_at timestamptz,
+  kiosk_id text,
+  metadata jsonb default '{}'::jsonb
+);
+```

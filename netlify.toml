@@ -1,0 +1,23 @@
+# SCENE HAUS — Netlify (Expo Web SPA)
+# UI fields (if not using this file):
+#   Base directory:     (blank)
+#   Package directory:  (blank)
+#   Build command:      npm run export:web
+#   Publish directory:  dist
+#   Functions directory: (leave default / blank)
+
+[build]
+  command = "npm run export:web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Set these in Netlify UI → Site configuration → Environment variables
+  # EXPO_PUBLIC_SUPABASE_URL = "https://oeourxitofeeeocmajgm.supabase.co"
+  # EXPO_PUBLIC_SUPABASE_ANON_KEY = "your_anon_key"
+  # EXPO_PUBLIC_API_BASE_URL = "https://YOUR_RENDER_SERVICE.onrender.com"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
