@@ -1,0 +1,13 @@
+# Minimal Supabase project config for local CLI / future linking.
+# Link a remote project with: npx supabase link --project-ref <YOUR_PROJECT_REF>
+
+[project]
+id = "scene-haus-app"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+major_version = 15
