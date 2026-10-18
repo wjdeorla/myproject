@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { DefaultTheme, NavigationContainer, useIsFocused } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { FEED_ITEMS, MY_SHORTS, PROFILE, SAVED_CHALLENGES, formatCount } from './data/dummy';
+import { FEED_ITEMS, MY_SHORTS, PROFILE, formatCount } from './data/dummy';
 
 const COLORS = {
   bg: '#0B0B0B',
@@ -87,7 +87,54 @@ function ScreenShell({ children, edges = ['top'] }) {
   );
 }
 
+const LIKE_RED = '#FF2D3A';
+
+const FeedSocialContext = createContext(null);
+
+function useFeedSocial() {
+  const value = useContext(FeedSocialContext);
+  if (!value) {
+    throw new Error('FeedSocialProvider is missing');
+  }
+  return value;
+}
+
+function FeedSocialProvider({ children }) {
+  const [likedIds, setLikedIds] = useState([]);
+  const [savedIds, setSavedIds] = useState([]);
+
+  const toggleLike = useCallback((id) => {
+    setLikedIds((current) =>
+      current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id],
+    );
+  }, []);
+
+  const toggleSave = useCallback((id) => {
+    setSavedIds((current) =>
+      current.includes(id) ? current.filter((itemId) => itemId !== id) : [id, ...current],
+    );
+  }, []);
+
+  const savedItems = useMemo(
+    () =>
+      savedIds
+        .map((id) => FEED_ITEMS.find((item) => item.id === id))
+        .filter(Boolean),
+    [savedIds],
+  );
+
+  const value = useMemo(
+    () => ({ likedIds, savedIds, toggleLike, toggleSave, savedItems }),
+    [likedIds, savedIds, toggleLike, toggleSave, savedItems],
+  );
+
+  return <FeedSocialContext.Provider value={value}>{children}</FeedSocialContext.Provider>;
+}
+
 function FeedPage({ item, isActive, height, bottomInset }) {
+  const { likedIds, savedIds, toggleLike, toggleSave } = useFeedSocial();
+  const liked = likedIds.includes(item.id);
+  const saved = savedIds.includes(item.id);
   const videoSource = typeof item.source === 'string' ? item.source : item.source?.uri;
   const player = useVideoPlayer(videoSource, (player) => {
     player.loop = true;
@@ -146,9 +193,21 @@ function FeedPage({ item, isActive, height, bottomInset }) {
 
         <View style={styles.feedActions}>
           <Ionicons name="person-outline" size={28} color={COLORS.white} />
-          <FeedAction icon="heart-outline" size={28} count={item.likes} />
+          <FeedAction
+            icon={liked ? 'heart' : 'heart-outline'}
+            size={28}
+            count={item.likes + (liked ? 1 : 0)}
+            color={liked ? LIKE_RED : COLORS.white}
+            onPress={() => toggleLike(item.id)}
+          />
           <FeedAction icon="chatbubble-outline" size={26} count={item.comments} />
-          <FeedAction icon="bookmark-outline" size={26} count={item.saves} />
+          <FeedAction
+            icon={saved ? 'bookmark' : 'bookmark-outline'}
+            size={26}
+            count={item.saves + (saved ? 1 : 0)}
+            color={COLORS.white}
+            onPress={() => toggleSave(item.id)}
+          />
           <FeedAction icon="arrow-redo-outline" size={26} count={item.shares} />
         </View>
       </View>
@@ -156,30 +215,71 @@ function FeedPage({ item, isActive, height, bottomInset }) {
   );
 }
 
-function FeedAction({ icon, size, count }) {
-  return (
-    <View style={styles.feedActionItem}>
-      <Ionicons name={icon} size={size} color={COLORS.white} />
+function FeedAction({ icon, size, count, color = COLORS.white, onPress }) {
+  const content = (
+    <>
+      <Ionicons name={icon} size={size} color={color} />
       <Text style={styles.feedActionCount}>{formatCount(count)}</Text>
-    </View>
+    </>
   );
+
+  if (!onPress) {
+    return <View style={styles.feedActionItem}>{content}</View>;
+  }
+
+  return (
+    <Pressable onPress={onPress} style={styles.feedActionItem} hitSlop={8}>
+      {content}
+    </Pressable>
+  );
+}
+
+function repeatFeed(cycleCount) {
+  const pages = [];
+  for (let cycle = 0; cycle < cycleCount; cycle += 1) {
+    FEED_ITEMS.forEach((item) => {
+      pages.push({ ...item, feedKey: `${item.id}-${cycle}` });
+    });
+  }
+  return pages;
 }
 
 function HomeFeedScreen() {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { height: windowHeight } = useWindowDimensions();
-  const [activeId, setActiveId] = useState(FEED_ITEMS[0].id);
+  const loopsRef = useRef(2);
+  const [loops, setLoops] = useState(2);
+  const feedPages = useMemo(() => repeatFeed(loops), [loops]);
+  const [activeId, setActiveId] = useState(feedPages[0].feedKey);
   const [pageHeight, setPageHeight] = useState(windowHeight);
 
   const bottomInset = 86 + insets.bottom;
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 80 }).current;
+  const extendingRef = useRef(false);
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
-    const nextId = viewableItems[0]?.item?.id;
-    if (nextId) {
-      setActiveId(nextId);
+    const nextKey = viewableItems[0]?.item?.feedKey;
+    if (nextKey) {
+      setActiveId(nextKey);
     }
   }).current;
+  const onFeedScroll = useCallback(
+    (event) => {
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      const distanceFromEnd = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      if (distanceFromEnd > pageHeight * 3) {
+        extendingRef.current = false;
+        return;
+      }
+      if (extendingRef.current || pageHeight <= 0) {
+        return;
+      }
+      extendingRef.current = true;
+      loopsRef.current += 1;
+      setLoops(loopsRef.current);
+    },
+    [pageHeight],
+  );
 
   const onLayout = useCallback((event) => {
     const nextHeight = event.nativeEvent.layout.height;
@@ -191,12 +291,12 @@ function HomeFeedScreen() {
   return (
     <View style={styles.feedRoot} onLayout={onLayout}>
       <FlatList
-        data={FEED_ITEMS}
-        keyExtractor={(item) => item.id}
+        data={feedPages}
+        keyExtractor={(item) => item.feedKey}
         renderItem={({ item }) => (
           <FeedPage
             item={item}
-            isActive={isFocused && item.id === activeId}
+            isActive={isFocused && item.feedKey === activeId}
             height={pageHeight}
             bottomInset={bottomInset}
           />
@@ -215,9 +315,11 @@ function HomeFeedScreen() {
           offset: pageHeight * index,
           index,
         })}
+        onScroll={onFeedScroll}
+        scrollEventThrottle={16}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
-        extraData={`${activeId}-${isFocused}`}
+        extraData={`${activeId}-${isFocused}-${loops}`}
       />
 
       <SafeAreaView style={styles.feedHeader} edges={['top']} pointerEvents="box-none">
@@ -565,22 +667,145 @@ function QrScanScreen({ navigation }) {
   );
 }
 
-function GalleryCard({ item }) {
+function VideoPoster({ source, style }) {
+  const [poster, setPoster] = useState(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !source) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.src = source;
+
+    const draw = () => {
+      if (cancelled || !video.videoWidth) {
+        return;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      if (!cancelled) {
+        setPoster(canvas.toDataURL('image/jpeg', 0.82));
+      }
+    };
+
+    const onLoaded = () => {
+      const lead = Number.isFinite(video.duration) ? Math.min(0.15, video.duration / 2) : 0;
+      if (lead > 0) {
+        video.currentTime = lead;
+      } else {
+        draw();
+      }
+    };
+
+    video.addEventListener('loadeddata', onLoaded);
+    video.addEventListener('seeked', draw);
+
+    return () => {
+      cancelled = true;
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    };
+  }, [source]);
+
+  if (poster) {
+    return <Image source={{ uri: poster }} style={style} />;
+  }
+
+  if (Platform.OS !== 'web') {
+    return <NativeVideoPoster source={source} style={style} />;
+  }
+
+  return <View style={[style, styles.posterFallback]} />;
+}
+
+function NativeVideoPoster({ source, style }) {
+  const player = useVideoPlayer(source, (player) => {
+    player.muted = true;
+    player.pause();
+  });
+
   return (
-    <View style={styles.galleryCard}>
-      <Image source={{ uri: item.image }} style={styles.galleryImage} />
-      <View style={styles.galleryChip}>
-        <Ionicons name="play" size={10} color={LIGHT.bg} />
-        <Text style={styles.galleryChipText}>{formatCount(item.views)}</Text>
+    <VideoView
+      player={player}
+      style={style}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
+}
+
+function SavedShortPlayer({ item, onClose }) {
+  const player = useVideoPlayer(item.source, (player) => {
+    player.loop = true;
+    player.muted = false;
+  });
+
+  useEffect(() => {
+    if (!player) {
+      return;
+    }
+    player.loop = true;
+    player.muted = false;
+    Promise.resolve(player.play()).catch(() => {
+      player.muted = true;
+      Promise.resolve(player.play()).catch(() => {});
+    });
+  }, [player]);
+
+  return (
+    <View style={styles.savedPlayer}>
+      <VideoView
+        player={player}
+        style={styles.savedPlayerVideo}
+        contentFit="cover"
+        nativeControls={false}
+        playsInline
+      />
+      <Pressable onPress={onClose} style={styles.savedPlayerClose} hitSlop={12}>
+        <Ionicons name="close" size={22} color={COLORS.white} />
+      </Pressable>
+      <View style={styles.savedPlayerMeta}>
+        <Text style={styles.savedPlayerTitle} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.savedPlayerCaption} numberOfLines={1}>
+          {item.caption}
+        </Text>
       </View>
     </View>
   );
 }
 
+function GalleryCard({ item, onPress }) {
+  return (
+    <Pressable onPress={onPress} disabled={!onPress} style={styles.galleryCard}>
+      {item.source ? (
+        <VideoPoster source={item.source} style={styles.galleryImage} />
+      ) : (
+        <Image source={{ uri: item.image }} style={styles.galleryImage} />
+      )}
+      <View style={styles.galleryChip}>
+        <Ionicons name="play" size={10} color={LIGHT.bg} />
+        <Text style={styles.galleryChipText}>{formatCount(item.views)}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 function MyPageScreen() {
   const focused = useIsFocused();
+  const { savedItems } = useFeedSocial();
   const [tab, setTab] = useState('shorts');
-  const items = tab === 'shorts' ? MY_SHORTS : SAVED_CHALLENGES;
+  const [playing, setPlaying] = useState(null);
+  const items = tab === 'shorts' ? MY_SHORTS : savedItems;
 
   return (
     <SafeAreaView style={styles.profileSafe} edges={['top']}>
@@ -604,7 +829,10 @@ function MyPageScreen() {
 
         <View style={styles.profileSegment}>
           <Pressable
-            onPress={() => setTab('shorts')}
+            onPress={() => {
+              setPlaying(null);
+              setTab('shorts');
+            }}
             style={[styles.profileSegItem, tab === 'shorts' && styles.profileSegItemOn]}
           >
             <Text style={[styles.profileSegText, tab === 'shorts' && styles.profileSegTextOn]}>
@@ -612,7 +840,10 @@ function MyPageScreen() {
             </Text>
           </Pressable>
           <Pressable
-            onPress={() => setTab('saved')}
+            onPress={() => {
+              setPlaying(null);
+              setTab('saved');
+            }}
             style={[styles.profileSegItem, tab === 'saved' && styles.profileSegItemOn]}
           >
             <Text style={[styles.profileSegText, tab === 'saved' && styles.profileSegTextOn]}>
@@ -621,12 +852,21 @@ function MyPageScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.galleryGrid}>
-          {items.map((item) => (
-            <GalleryCard key={item.id} item={item} />
-          ))}
-        </View>
+        {items.length === 0 ? (
+          <Text style={styles.savedEmpty}>저장한 숏폼이 없습니다.</Text>
+        ) : (
+          <View style={styles.galleryGrid}>
+            {items.map((item) => (
+              <GalleryCard
+                key={item.id}
+                item={item}
+                onPress={item.source ? () => setPlaying(item) : undefined}
+              />
+            ))}
+          </View>
+        )}
       </ScrollView>
+      {playing ? <SavedShortPlayer item={playing} onClose={() => setPlaying(null)} /> : null}
     </SafeAreaView>
   );
 }
@@ -746,6 +986,7 @@ function FloatingTabBar({ state, descriptors, navigation, insets }) {
 export default function App() {
   return (
     <SafeAreaProvider>
+      <FeedSocialProvider>
       <StatusBar style="light" />
       <NavigationContainer theme={DarkNavTheme}>
         <Tab.Navigator
@@ -802,6 +1043,7 @@ export default function App() {
           />
         </Tab.Navigator>
       </NavigationContainer>
+      </FeedSocialProvider>
     </SafeAreaProvider>
   );
 }
@@ -1778,6 +2020,7 @@ const styles = StyleSheet.create({
   },
   profileSafe: {
     flex: 1,
+    position: 'relative',
     backgroundColor: LIGHT.bg,
   },
   profilePad: {
@@ -1858,6 +2101,12 @@ const styles = StyleSheet.create({
   profileSegTextOn: {
     fontWeight: '800',
   },
+  savedEmpty: {
+    marginTop: 28,
+    color: LIGHT.muted,
+    fontSize: 14,
+    textAlign: 'center',
+  },
   galleryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1890,5 +2139,43 @@ const styles = StyleSheet.create({
     color: LIGHT.bg,
     fontSize: 11,
     fontWeight: '700',
+  },
+  posterFallback: {
+    backgroundColor: '#1A1A1A',
+  },
+  savedPlayer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000000',
+    zIndex: 30,
+  },
+  savedPlayerVideo: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  savedPlayerClose: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  savedPlayerMeta: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 108,
+  },
+  savedPlayerTitle: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  savedPlayerCaption: {
+    marginTop: 4,
+    color: COLORS.white,
+    fontSize: 13,
   },
 });

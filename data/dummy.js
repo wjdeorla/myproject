@@ -42,8 +42,8 @@ const FEED_VIEWS = [
 ];
 
 const FEED_CLIPS = [
-  { id: 'bad-ateez-1', title: 'BAD', artist: 'ATEEZ', file: 'bad-ateez-1.mp4', cover: 'bad.jpg' },
   { id: 'bad-ateez-2', title: 'BAD 2', artist: 'ATEEZ', file: 'bad-ateez-2.mp4', cover: 'bad.jpg' },
+  { id: 'bad-ateez-1', title: 'BAD', artist: 'ATEEZ', file: 'bad-ateez-1.mp4', cover: 'bad.jpg' },
   { id: 'bad-ateez-3', title: 'BAD 3', artist: 'ATEEZ', file: 'bad-ateez-3.mp4', cover: 'bad.jpg' },
   { id: 'combi', title: 'Combi', artist: 'Joucyplug', file: 'combi-joucyplug.mp4', cover: 'combi.jpg' },
   { id: 'crash', title: 'CRASH', artist: 'ALLDAY PROJECT', file: 'crash-allday-project.mp4', cover: 'crash.jpg' },
