@@ -17,6 +17,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { FEED_ITEMS, MY_SHORTS, PROFILE, SAVED_CHALLENGES, formatCount } from './data/dummy';
 
 const COLORS = {
   bg: '#0B0B0B',
@@ -46,6 +48,8 @@ const DATES = [
   { day: 'Wed', date: '14', weekday: '수' },
   { day: 'Thu', date: '15', weekday: '목' },
   { day: 'Fri', date: '16', weekday: '금' },
+  { day: 'Sat', date: '17', weekday: '토' },
+  { day: 'Sun', date: '18', weekday: '일' },
 ];
 
 const TIMES = ['14:00', '14:30', '15:00', '15:30'];
@@ -58,33 +62,6 @@ const BOOTH_TYPES = [
   { id: 'solo', name: '솔로 부스', desc: '1~2인 프라이빗 촬영', icon: 'person-outline' },
   { id: 'group', name: '그룹 부스', desc: '3~4인 프라이빗 촬영', icon: 'people-outline' },
   { id: 'motion', name: '모션 부스', desc: '천장형 레일카메라 촬영', icon: 'videocam-outline' },
-];
-
-const FEED_ITEMS = [
-  {
-    id: '1',
-    handle: '@vie.node',
-    title: 'Hype Boy 미러샷 튜토리얼',
-    caption: '부스에서 완벽한 각도로 찍...',
-    music: 'Hype Boy - New J',
-    source: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
-  },
-  {
-    id: '2',
-    handle: '@cjs.dksss',
-    title: 'MOKA "It\'s Me" STUDIO',
-    caption: 'CHOOM Hype Boy 미러...',
-    music: 'It\'s Me - ILLIT',
-    source: 'https://www.w3schools.com/html/mov_bbb.mp4',
-  },
-  {
-    id: '3',
-    handle: '@cjs.dksss',
-    title: 'MOKA "It\'s Me" STUDIO',
-    caption: 'CHOOM Hype Boy 미러...',
-    music: 'Miss you - scens',
-    source: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  },
 ];
 
 const Tab = createBottomTabNavigator();
@@ -165,12 +142,21 @@ function FeedPage({ item, isActive, height, bottomInset }) {
 
         <View style={styles.feedActions}>
           <Ionicons name="person-outline" size={28} color={COLORS.white} />
-          <Ionicons name="heart-outline" size={28} color={COLORS.white} />
-          <Ionicons name="chatbubble-outline" size={26} color={COLORS.white} />
-          <Ionicons name="bookmark-outline" size={26} color={COLORS.white} />
-          <Ionicons name="arrow-redo-outline" size={26} color={COLORS.white} />
+          <FeedAction icon="heart-outline" size={28} count={item.likes} />
+          <FeedAction icon="chatbubble-outline" size={26} count={item.comments} />
+          <FeedAction icon="bookmark-outline" size={26} count={item.saves} />
+          <FeedAction icon="arrow-redo-outline" size={26} count={item.shares} />
         </View>
       </View>
+    </View>
+  );
+}
+
+function FeedAction({ icon, size, count }) {
+  return (
+    <View style={styles.feedActionItem}>
+      <Ionicons name={icon} size={size} color={COLORS.white} />
+      <Text style={styles.feedActionCount}>{formatCount(count)}</Text>
     </View>
   );
 }
@@ -179,7 +165,6 @@ function HomeFeedScreen() {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { height: windowHeight } = useWindowDimensions();
-  const [feedTab, setFeedTab] = useState('recommend');
   const [activeId, setActiveId] = useState(FEED_ITEMS[0].id);
   const [pageHeight, setPageHeight] = useState(windowHeight);
 
@@ -231,18 +216,10 @@ function HomeFeedScreen() {
       <SafeAreaView style={styles.feedHeader} edges={['top']} pointerEvents="box-none">
         <View style={styles.feedTopBar}>
           <View style={styles.feedTabs}>
-            <Pressable onPress={() => setFeedTab('following')} style={styles.feedTabBtn}>
-              <Text style={[styles.feedTabText, feedTab !== 'following' && styles.feedTabMuted]}>
-                팔로잉
-              </Text>
-              {feedTab === 'following' ? <View style={styles.feedTabUnderline} /> : null}
-            </Pressable>
-            <Pressable onPress={() => setFeedTab('recommend')} style={styles.feedTabBtn}>
-              <Text style={[styles.feedTabText, feedTab !== 'recommend' && styles.feedTabMuted]}>
-                추천
-              </Text>
-              {feedTab === 'recommend' ? <View style={styles.feedTabUnderline} /> : null}
-            </Pressable>
+            <View style={styles.feedTabBtn}>
+              <Text style={styles.feedTabText}>추천</Text>
+              <View style={styles.feedTabUnderline} />
+            </View>
           </View>
           <Pressable style={styles.feedSearch} hitSlop={12}>
             <Ionicons name="search" size={22} color={COLORS.white} />
@@ -581,34 +558,13 @@ function QrScanScreen({ navigation }) {
   );
 }
 
-const MY_SHORTS = [
-  {
-    id: 's1',
-    views: '0.6K',
-    image: 'https://images.unsplash.com/photo-1535525153412-5a090c909bd7?w=800&q=80',
-  },
-  {
-    id: 's2',
-    views: '0.6K',
-    image: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&q=80',
-  },
-];
-
-const SAVED_CHALLENGES = [
-  {
-    id: 'c1',
-    views: '0.6K',
-    image: 'https://images.unsplash.com/photo-1547153760-18fc86324498?w=800&q=80',
-  },
-];
-
 function GalleryCard({ item }) {
   return (
     <View style={styles.galleryCard}>
       <Image source={{ uri: item.image }} style={styles.galleryImage} />
       <View style={styles.galleryChip}>
         <Ionicons name="play" size={10} color={LIGHT.bg} />
-        <Text style={styles.galleryChipText}>{item.views}</Text>
+        <Text style={styles.galleryChipText}>{formatCount(item.views)}</Text>
       </View>
     </View>
   );
@@ -625,15 +581,15 @@ function MyPageScreen() {
       <ScrollView contentContainerStyle={styles.profilePad} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>
           <View style={styles.profileAvatar}>
-            <Text style={styles.profileInitial}>J</Text>
+            <Text style={styles.profileInitial}>{PROFILE.initial}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.profileNameLight}>지유나</Text>
-            <Text style={styles.profileHandle}>@Jiyuna_scene</Text>
+            <Text style={styles.profileNameLight}>{PROFILE.name}</Text>
+            <Text style={styles.profileHandle}>{PROFILE.handle}</Text>
             <Text style={styles.profileStats}>
-              <Text style={styles.profileStatNum}>12</Text>
+              <Text style={styles.profileStatNum}>{PROFILE.publishedCount}</Text>
               <Text style={styles.profileStatLabel}> 결과물   </Text>
-              <Text style={styles.profileStatNum}>5</Text>
+              <Text style={styles.profileStatNum}>{PROFILE.reservationCount}</Text>
               <Text style={styles.profileStatLabel}> 예약</Text>
             </Text>
           </View>
@@ -668,9 +624,79 @@ function MyPageScreen() {
   );
 }
 
-function tabIcon(name, focused, color) {
-  const iconName = focused ? name : `${name}-outline`;
-  return <Ionicons name={iconName} size={22} color={color} />;
+function tabIcon(name, color) {
+  const stroke = {
+    fill: 'none',
+    stroke: color,
+    strokeWidth: 1.8,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  };
+
+  if (name === 'home') {
+    return (
+      <Svg width={26} height={26} viewBox="0 0 24 24">
+        <Path d="M3.8 20.6V11.2L12 4.2l8.2 7v9.4h-6.1v-6.6H9.9v6.6H3.8Z" {...stroke} />
+      </Svg>
+    );
+  }
+
+  if (name === 'calendar') {
+    return (
+      <Svg width={26} height={26} viewBox="0 0 24 24">
+        <Path d="M8 6.2V3.4M16 6.2V3.4" {...stroke} />
+        <Rect x="3.8" y="5.2" width="16.4" height="15.2" rx="2.2" {...stroke} />
+        <Path d="M3.8 9.4h16.4" {...stroke} />
+        <Circle cx="8.2" cy="14.2" r="1.05" fill={color} />
+        <Circle cx="12" cy="14.2" r="1.05" fill={color} />
+        <Circle cx="15.8" cy="14.2" r="1.05" fill={color} />
+      </Svg>
+    );
+  }
+
+  if (name === 'cut') {
+    return (
+      <Svg width={26} height={26} viewBox="0 0 24 24">
+        <Circle cx="7.6" cy="7.2" r="2.7" {...stroke} />
+        <Circle cx="7.6" cy="16.8" r="2.7" {...stroke} />
+        <Path d="M9.8 8.8 18.8 17.6M9.8 15.2 18.8 6.4" {...stroke} />
+      </Svg>
+    );
+  }
+
+  if (name === 'grid') {
+    const checker = [];
+    const cell = 1.8;
+    for (let row = 0; row < 4; row += 1) {
+      for (let col = 0; col < 4; col += 1) {
+        checker.push(
+          <Rect
+            key={`qr-${row}-${col}`}
+            x={13.6 + col * cell}
+            y={13.6 + row * cell}
+            width={cell}
+            height={cell}
+            fill={(row + col) % 2 === 0 ? '#FFFFFF' : '#000000'}
+          />,
+        );
+      }
+    }
+    return (
+      <Svg width={26} height={26} viewBox="0 0 24 24">
+        <Rect x="3.2" y="3.2" width="7.2" height="7.2" rx="1.6" {...stroke} />
+        <Rect x="13.6" y="3.2" width="7.2" height="7.2" rx="1.6" {...stroke} />
+        <Rect x="3.2" y="13.6" width="7.2" height="7.2" rx="1.6" {...stroke} />
+        {checker}
+      </Svg>
+    );
+  }
+
+  return (
+    <Svg width={26} height={26} viewBox="0 0 24 24">
+      <Circle cx="12" cy="7.6" r="3.1" {...stroke} />
+      <Path d="M5.4 20.2V15.2H18.6V20.2" {...stroke} strokeLinejoin="miter" />
+    </Svg>
+  );
 }
 
 function FloatingTabBar({ state, descriptors, navigation, insets }) {
@@ -728,7 +754,7 @@ export default function App() {
             options={{
               title: '홈 (피드)',
               tabBarLabel: '홈',
-              tabBarIcon: ({ focused, color }) => tabIcon('home', focused, color),
+              tabBarIcon: ({ color }) => tabIcon('home', color),
             }}
           />
           <Tab.Screen
@@ -737,7 +763,7 @@ export default function App() {
             options={{
               title: '스튜디오 예약',
               tabBarLabel: '예약',
-              tabBarIcon: ({ focused, color }) => tabIcon('calendar', focused, color),
+              tabBarIcon: ({ color }) => tabIcon('calendar', color),
             }}
           />
           <Tab.Screen
@@ -746,7 +772,7 @@ export default function App() {
             options={{
               title: '작업실',
               tabBarLabel: '작업실',
-              tabBarIcon: ({ focused, color }) => tabIcon('cut', focused, color),
+              tabBarIcon: ({ color }) => tabIcon('cut', color),
             }}
           />
           <Tab.Screen
@@ -755,7 +781,7 @@ export default function App() {
             options={{
               title: 'QR 스캔',
               tabBarLabel: 'QR',
-              tabBarIcon: ({ focused, color }) => tabIcon('grid', focused, color),
+              tabBarIcon: ({ color }) => tabIcon('grid', color),
             }}
           />
           <Tab.Screen
@@ -764,7 +790,7 @@ export default function App() {
             options={{
               title: '마이페이지',
               tabBarLabel: '마이',
-              tabBarIcon: ({ focused, color }) => tabIcon('person', focused, color),
+              tabBarIcon: ({ color }) => tabIcon('person', color),
             }}
           />
         </Tab.Navigator>
@@ -1107,10 +1133,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  feedTabMuted: {
-    color: 'rgba(255,255,255,0.55)',
-    fontWeight: '500',
-  },
   feedTabUnderline: {
     marginTop: 4,
     width: 18,
@@ -1183,9 +1205,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   feedActions: {
-    gap: 20,
+    gap: 18,
     alignItems: 'center',
     paddingBottom: 6,
+  },
+  feedActionItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  feedActionCount: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   floatingTabWrap: {
     position: 'absolute',
@@ -1193,36 +1227,43 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     alignItems: 'center',
+    zIndex: 20,
   },
   floatingTabBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
-    borderRadius: 28,
-    paddingHorizontal: 6,
+    justifyContent: 'space-between',
+    width: 332,
+    backgroundColor: '#000000',
+    borderRadius: 40,
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    gap: 2,
   },
   tabHit: {
-    width: 44,
+    width: 46,
     height: 46,
     borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabHitActive: {
-    backgroundColor: '#3A3A3A',
+    width: 68,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#8F8F8F',
   },
   floatingTabBarLight: {
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#111111',
   },
   tabHitActiveLight: {
-    backgroundColor: '#EFEFEF',
+    width: 68,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#E4E4E4',
   },
   lightSafe: {
     flex: 1,
