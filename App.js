@@ -133,7 +133,11 @@ function FeedPage({ item, isActive, height, bottomInset }) {
             {item.caption}
           </Text>
           <View style={styles.musicChip}>
-            <Ionicons name="musical-notes-outline" size={13} color={COLORS.white} />
+            {item.cover ? (
+              <Image source={{ uri: item.cover }} style={styles.musicCover} />
+            ) : (
+              <Ionicons name="musical-notes-outline" size={13} color={COLORS.white} />
+            )}
             <Text style={styles.musicText} numberOfLines={1}>
               {item.music}
             </Text>
@@ -198,6 +202,9 @@ function HomeFeedScreen() {
           />
         )}
         pagingEnabled
+        initialNumToRender={1}
+        maxToRenderPerBatch={1}
+        windowSize={3}
         showsVerticalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={pageHeight}
@@ -1192,13 +1199,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingLeft: 6,
+    paddingRight: 12,
+    paddingVertical: 4,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.85)',
     backgroundColor: 'rgba(0,0,0,0.28)',
     maxWidth: '100%',
+  },
+  musicCover: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   musicText: {
     color: COLORS.white,
@@ -1234,12 +1248,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: 332,
-    backgroundColor: '#000000',
+    backgroundColor: 'rgba(0,0,0,0.62)',
     borderRadius: 40,
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
+    borderWidth: 0,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    overflow: 'hidden',
   },
   tabHit: {
     width: 46,
@@ -1252,12 +1266,11 @@ const styles = StyleSheet.create({
     width: 68,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#8F8F8F',
+    backgroundColor: 'rgba(255,255,255,0.28)',
   },
   floatingTabBarLight: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 3,
-    borderColor: '#111111',
+    borderWidth: 0,
   },
   tabHitActiveLight: {
     width: 68,
