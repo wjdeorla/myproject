@@ -43,20 +43,20 @@ const LIGHT = {
 };
 
 const DATES = [
-  { day: 'Mon', date: '12', weekday: '월' },
-  { day: 'Tue', date: '13', weekday: '화' },
-  { day: 'Wed', date: '14', weekday: '수' },
-  { day: 'Thu', date: '15', weekday: '목' },
-  { day: 'Fri', date: '16', weekday: '금' },
-  { day: 'Sat', date: '17', weekday: '토' },
-  { day: 'Sun', date: '18', weekday: '일' },
+  { day: 'Sun', date: '25', weekday: '일' },
+  { day: 'Mon', date: '26', weekday: '월' },
+  { day: 'Tue', date: '27', weekday: '화' },
+  { day: 'Wed', date: '28', weekday: '수' },
+  { day: 'Thu', date: '29', weekday: '목' },
+  { day: 'Fri', date: '30', weekday: '금' },
+  { day: 'Sat', date: '31', weekday: '토' },
 ];
 
 const TIMES = ['14:00', '14:30', '15:00', '15:30'];
 const BRANCH = {
-  name: 'SCENE HAUSE 홍대점',
-  address: '서울 마포구 와우산로 21길 20',
-  shortName: '홍대 본점',
+  name: 'SCENE HAUSE 백석대점',
+  address: '천안시 동남구 문암로 74',
+  shortName: '백석대점',
 };
 const BOOTH_TYPES = [
   { id: 'solo', name: '솔로 부스', desc: '1~2인 프라이빗 촬영', icon: 'person-outline' },
@@ -373,14 +373,14 @@ function DummyQR({ seed }) {
 function ReservationTab({ navigation }) {
   const focused = useIsFocused();
   const [step, setStep] = useState('form');
-  const [selectedDate, setSelectedDate] = useState('13');
+  const [selectedDate, setSelectedDate] = useState('27');
   const [selectedTime, setSelectedTime] = useState('14:30');
   const [selectedBooth, setSelectedBooth] = useState('solo');
   const [reservation, setReservation] = useState(null);
 
   const dateMeta = DATES.find((item) => item.date === selectedDate) ?? DATES[1];
   const boothMeta = BOOTH_TYPES.find((item) => item.id === selectedBooth) ?? BOOTH_TYPES[0];
-  const confirmDateLabel = `2026 . 07 . ${dateMeta.date} (${dateMeta.weekday}) ${selectedTime}`;
+  const confirmDateLabel = `2026 . 10 . ${dateMeta.date} (${dateMeta.weekday}) ${selectedTime}`;
 
   const goBackFromForm = () => {
     if (reservation) {
@@ -404,7 +404,7 @@ function ReservationTab({ navigation }) {
   };
 
   const startNewReservation = () => {
-    setSelectedDate('13');
+    setSelectedDate('27');
     setSelectedTime('14:30');
     setSelectedBooth('solo');
     setStep('form');
@@ -430,7 +430,7 @@ function ReservationTab({ navigation }) {
 
           <View style={styles.sectionHead}>
             <Text style={styles.lightSection}>날짜 선택</Text>
-            <Text style={styles.monthLabel}>2026년 7월</Text>
+            <Text style={styles.monthLabel}>2026년 10월</Text>
           </View>
           <ScrollView
             horizontal
@@ -554,7 +554,7 @@ function ReservationTab({ navigation }) {
               </View>
               <Text style={styles.historyBranch}>{reservation.branchName}</Text>
               <Text style={styles.historyMeta}>
-                {`2026. 07. ${reservation.date} (${reservation.weekday})    오후 ${reservation.time}`}
+                {`2026. 10. ${reservation.date} (${reservation.weekday})    오후 ${reservation.time}`}
               </Text>
               <View style={styles.historyActions}>
                 <Pressable style={styles.changeBtn} onPress={() => setStep('form')}>
