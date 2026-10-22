@@ -853,7 +853,9 @@ function MyPageScreen() {
         </View>
 
         {items.length === 0 ? (
-          <Text style={styles.savedEmpty}>저장한 숏폼이 없습니다.</Text>
+          <Text style={styles.savedEmpty}>
+            {tab === 'shorts' ? '촬영한 숏폼이 없습니다.' : '저장한 숏폼이 없습니다.'}
+          </Text>
         ) : (
           <View style={styles.galleryGrid}>
             {items.map((item) => (

@@ -88,50 +88,7 @@ export const FEED_ITEMS = FEED_CLIPS.map((clip, index) => {
   };
 });
 
-export const MY_SHORTS = [
-  {
-    id: 's1',
-    title: 'Hype Boy 미러샷',
-    views: 2410,
-    likes: 168,
-    image: 'https://images.unsplash.com/photo-1535525153412-5a090c909bd7?w=800&q=80',
-  },
-  {
-    id: 's2',
-    title: '솔로 부스 테스트',
-    views: 860,
-    likes: 54,
-    image: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&q=80',
-  },
-  {
-    id: 's3',
-    title: '홍대점 원테이크',
-    views: 12100,
-    likes: 842,
-    image: 'https://images.unsplash.com/photo-1547153760-18fc86324498?w=800&q=80',
-  },
-  {
-    id: 's4',
-    title: 'Slow 미러 워크',
-    views: 430,
-    likes: 29,
-    image: 'https://images.unsplash.com/photo-1518834107812-67b0b7c58434?w=800&q=80',
-  },
-  {
-    id: 's5',
-    title: '그룹 부스 싱크',
-    views: 1870,
-    likes: 131,
-    image: 'https://images.unsplash.com/photo-1520367745676-56196632e934?w=800&q=80',
-  },
-  {
-    id: 's6',
-    title: '레일캠 챌린지 컷',
-    views: 6740,
-    likes: 481,
-    image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80',
-  },
-];
+export const MY_SHORTS = [];
 
 export const SAVED_CHALLENGES = [
   {
