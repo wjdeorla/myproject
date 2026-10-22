@@ -168,8 +168,6 @@ function FeedPage({ item, isActive, height, bottomInset }) {
         nativeControls={false}
         playsInline
       />
-      <View style={styles.feedScrim} pointerEvents="none" />
-
       <View style={[styles.feedBottom, { paddingBottom: bottomInset }]}>
         <View style={styles.feedMeta}>
           <Text style={styles.feedHandle}>{item.handle}</Text>
@@ -1347,14 +1345,6 @@ const styles = StyleSheet.create({
   },
   feedVideoFallback: {
     backgroundColor: '#141414',
-  },
-  feedScrim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 220,
-    backgroundColor: 'rgba(0,0,0,0.22)',
   },
   feedHeader: {
     position: 'absolute',
