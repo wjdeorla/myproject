@@ -136,23 +136,12 @@ function FeedSocialProvider({ children }) {
   return <FeedSocialContext.Provider value={value}>{children}</FeedSocialContext.Provider>;
 }
 
-function FeedPage({
-  item,
-  isActive,
-  loadVideo = true,
-  preloadFull = true,
-  soundOn = false,
-  onBufferedAhead,
-  height,
-  bottomInset,
-}) {
+function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, bottomInset }) {
   const { likedIds, savedIds, toggleLike, toggleSave } = useFeedSocial();
   const liked = likedIds.includes(item.id);
   const saved = savedIds.includes(item.id);
   const videoSource = typeof item.source === 'string' ? item.source : item.source?.uri;
   const webVideoRef = useRef(null);
-  const onBufferedAheadRef = useRef(onBufferedAhead);
-  onBufferedAheadRef.current = onBufferedAhead;
   const player = useVideoPlayer(Platform.OS === 'web' || !loadVideo ? null : videoSource, (player) => {
     player.loop = true;
     player.muted = true;
@@ -165,10 +154,10 @@ function FeedPage({
         return undefined;
       }
       video.loop = true;
-      video.preload = preloadFull ? 'auto' : 'metadata';
+      video.preload = loadVideo ? 'auto' : 'none';
       if (!loadVideo) {
         video.pause();
-        if (video.getAttribute('src')) {
+        if (video.getAttribute('src') || video.currentSrc) {
           video.removeAttribute('src');
           video.load();
         }
@@ -178,17 +167,9 @@ function FeedPage({
         video.src = videoSource;
       }
       if (!isActive) {
-        video.pause();
         return undefined;
       }
-      const markAhead = () => {
-        const end = video.buffered.length ? video.buffered.end(video.buffered.length - 1) : 0;
-        if (end - video.currentTime > 4) {
-          onBufferedAheadRef.current?.();
-        }
-      };
       const tryPlay = () => {
-        markAhead();
         if (!video.paused) {
           return;
         }
@@ -203,13 +184,7 @@ function FeedPage({
       };
       tryPlay();
       video.addEventListener('canplay', tryPlay);
-      video.addEventListener('progress', markAhead);
-      video.addEventListener('timeupdate', markAhead);
-      return () => {
-        video.removeEventListener('canplay', tryPlay);
-        video.removeEventListener('progress', markAhead);
-        video.removeEventListener('timeupdate', markAhead);
-      };
+      return () => video.removeEventListener('canplay', tryPlay);
     }
 
     if (!player) {
@@ -225,7 +200,7 @@ function FeedPage({
       player.pause();
     }
     return undefined;
-  }, [isActive, loadVideo, player, preloadFull, soundOn, videoSource]);
+  }, [isActive, loadVideo, player, soundOn, videoSource]);
 
   return (
     <View style={[styles.feedPage, { height }]}>
@@ -238,7 +213,7 @@ function FeedPage({
           playsInline
           autoPlay={isActive}
           loop
-          preload={loadVideo && preloadFull ? 'auto' : 'metadata'}
+          preload={loadVideo ? 'auto' : 'none'}
           style={styles.feedVideoFrame}
         />
       ) : (
@@ -334,9 +309,6 @@ function HomeFeedScreen() {
   const [activeId, setActiveId] = useState(feedPages[0].feedKey);
   const [pageHeight, setPageHeight] = useState(windowHeight);
   const [soundOn, setSoundOn] = useState(false);
-  const [preloadNext, setPreloadNext] = useState(false);
-  const preloadNextRef = useRef(false);
-  const pageHeightLockedRef = useRef(false);
   const soundOnRef = useRef(false);
   const activeIdRef = useRef(feedPages[0].feedKey);
   const feedPagesRef = useRef(feedPages);
@@ -349,18 +321,14 @@ function HomeFeedScreen() {
   const bottomInset = 86 + insets.bottom;
   const onFeedScroll = useCallback((event) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const height = pageHeightRef.current;
+    const height = layoutMeasurement.height || pageHeightRef.current;
     if (height > 0) {
       const pages = feedPagesRef.current;
-      const raw = contentOffset.y / height;
-      const fraction = raw - Math.floor(raw);
-      if (fraction <= 0.22 || fraction >= 0.78) {
-        const index = Math.min(pages.length - 1, Math.max(0, Math.round(raw)));
-        const nextKey = pages[index]?.feedKey;
-        if (nextKey && nextKey !== activeIdRef.current) {
-          activeIdRef.current = nextKey;
-          setActiveId(nextKey);
-        }
+      const index = Math.min(pages.length - 1, Math.max(0, Math.round(contentOffset.y / height)));
+      const nextKey = pages[index]?.feedKey;
+      if (nextKey && nextKey !== activeIdRef.current) {
+        activeIdRef.current = nextKey;
+        setActiveId(nextKey);
       }
     }
     const distanceFromEnd = contentSize.height - (contentOffset.y + layoutMeasurement.height);
@@ -378,28 +346,10 @@ function HomeFeedScreen() {
 
   const onLayout = useCallback((event) => {
     const nextHeight = event.nativeEvent.layout.height;
-    if (nextHeight <= 0) {
-      return;
-    }
-    if (pageHeightLockedRef.current && Math.abs(nextHeight - pageHeightRef.current) < 140) {
-      return;
-    }
-    pageHeightLockedRef.current = true;
-    if (Math.abs(nextHeight - pageHeightRef.current) >= 1) {
+    if (nextHeight > 0 && Math.abs(nextHeight - pageHeightRef.current) > 1) {
       setPageHeight(nextHeight);
     }
   }, []);
-  const onBufferedAhead = useCallback(() => {
-    if (preloadNextRef.current) {
-      return;
-    }
-    preloadNextRef.current = true;
-    setPreloadNext(true);
-  }, []);
-  useEffect(() => {
-    preloadNextRef.current = false;
-    setPreloadNext(false);
-  }, [activeId]);
   useEffect(() => {
     if (Platform.OS !== 'web' || !isFocused) {
       return undefined;
@@ -448,8 +398,6 @@ function HomeFeedScreen() {
             item={item}
             isActive={isFocused && item.feedKey === activeId}
             loadVideo={index === activeIndex || index === activeIndex + 1}
-            preloadFull={index === activeIndex || (index === activeIndex + 1 && preloadNext)}
-            onBufferedAhead={index === activeIndex ? onBufferedAhead : undefined}
             soundOn={soundOn}
             height={pageHeight}
             bottomInset={bottomInset}
@@ -457,7 +405,7 @@ function HomeFeedScreen() {
         )}
         pagingEnabled
         initialNumToRender={2}
-        maxToRenderPerBatch={2}
+        maxToRenderPerBatch={1}
         windowSize={3}
         showsVerticalScrollIndicator={false}
         decelerationRate="fast"
@@ -471,7 +419,7 @@ function HomeFeedScreen() {
         })}
         onScroll={onFeedScroll}
         scrollEventThrottle={16}
-        extraData={`${activeId}-${isFocused}-${loops}-${soundOn}-${preloadNext}`}
+        extraData={`${activeId}-${isFocused}-${loops}-${soundOn}`}
       />
 
       <SafeAreaView style={styles.feedHeader} edges={['top']} pointerEvents="box-none">
