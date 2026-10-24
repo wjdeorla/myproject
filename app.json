@@ -21,7 +21,18 @@
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
-      "output": "single"
+      "output": "single",
+      "name": "SCENE HAUS",
+      "shortName": "SCENE HAUS",
+      "lang": "ko",
+      "description": "SCENE HAUS",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "scope": "/",
+      "themeColor": "#000000",
+      "backgroundColor": "#000000",
+      "barStyle": "black-translucent"
     },
     "plugins": [
       [

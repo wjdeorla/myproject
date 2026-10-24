@@ -162,7 +162,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
         }
         return undefined;
       }
-      if (video.getAttribute('src') !== videoSource) {
+      if (video.getAttribute('src') !== videoSource && !String(video.currentSrc || '').endsWith(videoSource)) {
         video.src = videoSource;
       }
       if (!isActive) {
@@ -283,7 +283,7 @@ function FeedAction({ icon, size, count, color = COLORS.white, onPress }) {
   }
 
   return (
-    <Pressable onPress={onPress} style={styles.feedActionItem} hitSlop={8}>
+    <Pressable dataSet={{ feedAction: 'true' }} onPress={onPress} style={styles.feedActionItem} hitSlop={8}>
       {content}
     </Pressable>
   );
@@ -354,29 +354,30 @@ function HomeFeedScreen() {
     if (Platform.OS !== 'web' || !isFocused) {
       return undefined;
     }
-    const kick = () => {
+    const kick = (event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-feed-action]')) {
+        return;
+      }
       if (!soundOnRef.current) {
         soundOnRef.current = true;
         setSoundOn(true);
       }
-      document.querySelectorAll('video[data-feed-video]').forEach((video) => {
+      const visible = [...document.querySelectorAll('video[data-feed-video]')].find((video) => {
         if (!video.getAttribute('src')) {
-          return;
+          return false;
         }
-        video.muted = false;
-        Promise.resolve(video.play())
-          .then(() => {
-            const nextRect = video.getBoundingClientRect();
-            const nowVisible =
-              nextRect.top < window.innerHeight * 0.75 && nextRect.bottom > window.innerHeight * 0.25;
-            if (!nowVisible) {
-              video.pause();
-            }
-          })
-          .catch(() => {
-            video.muted = true;
-            Promise.resolve(video.play()).catch(() => {});
-          });
+        const rect = video.getBoundingClientRect();
+        const center = rect.top + rect.height / 2;
+        return center > 0 && center < window.innerHeight;
+      });
+      if (!visible) {
+        return;
+      }
+      visible.muted = false;
+      Promise.resolve(visible.play()).catch(() => {
+        visible.muted = true;
+        Promise.resolve(visible.play()).catch(() => {});
       });
     };
     window.addEventListener('pointerdown', kick, { capture: true });
