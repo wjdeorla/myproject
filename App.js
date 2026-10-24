@@ -185,27 +185,28 @@ function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
         return undefined;
       }
       video.loop = true;
-      video.preload = loadVideo ? 'auto' : 'none';
       markInlineVideo(video);
-      if (!loadVideo) {
-        video.pause();
-        if (video.getAttribute('src') || video.currentSrc) {
-          video.removeAttribute('src');
-          video.load();
-        }
-        return undefined;
-      }
+      video.volume = 0;
       if (video.getAttribute('src') !== videoSource && !String(video.currentSrc || '').endsWith(videoSource)) {
         video.src = videoSource;
       }
       if (!isActive) {
         video.pause();
+        video.preload = 'auto';
         return undefined;
       }
+      video.preload = 'auto';
       const tryPlay = () => {
+        if (!isActive) {
+          video.pause();
+          return;
+        }
+        markInlineVideo(video);
+        video.volume = 0;
+        if (video.readyState < 2) {
+          return;
+        }
         if (!video.paused && video.currentTime > 0) {
-          video.muted = true;
-          video.volume = 0;
           return;
         }
         playInlineVideo(video);
@@ -237,18 +238,20 @@ function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
   return (
     <View style={[styles.feedPage, { height }]}>
       {Platform.OS === 'web' ? (
-        <video
-          ref={setWebVideo}
-          src={loadVideo ? videoSource : undefined}
-          muted
-          data-feed-video=""
-          data-feed-key={item.feedKey}
-          playsInline
-          autoPlay={isActive}
-          loop
-          preload={loadVideo ? 'auto' : 'none'}
-          style={StyleSheet.flatten([styles.feedVideoFrame, { width: pageWidth, height }])}
-        />
+        loadVideo ? (
+          <video
+            ref={setWebVideo}
+            src={videoSource}
+            muted
+            data-feed-video=""
+            data-feed-key={item.feedKey}
+            playsInline
+            autoPlay={isActive}
+            loop
+            preload="auto"
+            style={StyleSheet.flatten([styles.feedVideoFrame, { width: pageWidth, height }])}
+          />
+        ) : null
       ) : (
         <VideoView
           player={player}
@@ -363,7 +366,7 @@ function HomeFeedScreen() {
           const video = [...document.querySelectorAll('video[data-feed-video]')].find(
             (node) => node.getAttribute('data-feed-key') === nextKey && node.getAttribute('src'),
           );
-          if (video) {
+          if (video && video.readyState >= 2) {
             playInlineVideo(video);
           }
         }
@@ -410,7 +413,7 @@ function HomeFeedScreen() {
         pagingEnabled
         initialNumToRender={2}
         maxToRenderPerBatch={1}
-        windowSize={3}
+        windowSize={2}
         showsVerticalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={pageHeight}
