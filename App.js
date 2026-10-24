@@ -103,6 +103,8 @@ function FeedSocialProvider({ children }) {
   const [likedIds, setLikedIds] = useState([]);
   const [savedIds, setSavedIds] = useState([]);
 
+  const [playingSaved, setPlayingSaved] = useState(null);
+
   const toggleLike = useCallback((id) => {
     setLikedIds((current) =>
       current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id],
@@ -115,6 +117,9 @@ function FeedSocialProvider({ children }) {
     );
   }, []);
 
+  const openSaved = useCallback((item) => setPlayingSaved(item), []);
+  const closeSaved = useCallback(() => setPlayingSaved(null), []);
+
   const savedItems = useMemo(
     () =>
       savedIds
@@ -124,14 +129,14 @@ function FeedSocialProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ likedIds, savedIds, toggleLike, toggleSave, savedItems }),
-    [likedIds, savedIds, toggleLike, toggleSave, savedItems],
+    () => ({ likedIds, savedIds, toggleLike, toggleSave, savedItems, playingSaved, openSaved, closeSaved }),
+    [likedIds, savedIds, toggleLike, toggleSave, savedItems, playingSaved, openSaved, closeSaved],
   );
 
   return <FeedSocialContext.Provider value={value}>{children}</FeedSocialContext.Provider>;
 }
 
-function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
+function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, bottomInset }) {
   const { likedIds, savedIds, toggleLike, toggleSave } = useFeedSocial();
   const liked = likedIds.includes(item.id);
   const saved = savedIds.includes(item.id);
@@ -148,7 +153,7 @@ function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
       if (!video) {
         return undefined;
       }
-      video.muted = true;
+      video.muted = !soundOn;
       video.loop = true;
       if (!isActive || !loadVideo) {
         video.pause();
@@ -175,7 +180,7 @@ function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
       player.pause();
     }
     return undefined;
-  }, [isActive, loadVideo, player, videoSource]);
+  }, [isActive, loadVideo, player, soundOn, videoSource]);
 
   return (
     <View style={[styles.feedPage, { height }]}>
@@ -183,7 +188,7 @@ function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
         <video
           ref={webVideoRef}
           src={loadVideo ? videoSource : undefined}
-          muted
+          muted={!soundOn}
           playsInline
           autoPlay={isActive}
           loop
@@ -282,6 +287,7 @@ function HomeFeedScreen() {
   const feedPages = useMemo(() => repeatFeed(loops), [loops]);
   const [activeId, setActiveId] = useState(feedPages[0].feedKey);
   const [pageHeight, setPageHeight] = useState(windowHeight);
+  const [soundOn, setSoundOn] = useState(false);
 
   const bottomInset = 86 + insets.bottom;
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 80 }).current;
@@ -316,6 +322,20 @@ function HomeFeedScreen() {
       setPageHeight(nextHeight);
     }
   }, []);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || soundOn || !isFocused) {
+      return undefined;
+    }
+    const unlock = () => {
+      setSoundOn(true);
+      document.querySelectorAll('video').forEach((video) => {
+        video.muted = false;
+        Promise.resolve(video.play()).catch(() => {});
+      });
+    };
+    window.addEventListener('pointerdown', unlock, { capture: true, once: true });
+    return () => window.removeEventListener('pointerdown', unlock, { capture: true });
+  }, [isFocused, soundOn]);
   const activeIndex = Math.max(
     0,
     feedPages.findIndex((page) => page.feedKey === activeId),
@@ -331,6 +351,7 @@ function HomeFeedScreen() {
             item={item}
             isActive={isFocused && item.feedKey === activeId}
             loadVideo={Math.abs(index - activeIndex) <= 1}
+            soundOn={soundOn}
             height={pageHeight}
             bottomInset={bottomInset}
           />
@@ -750,7 +771,7 @@ function VideoPoster({ source, style }) {
   }, [source]);
 
   if (poster) {
-    return <Image source={{ uri: poster }} style={style} />;
+    return <Image source={{ uri: poster }} resizeMode="cover" style={[style, styles.centeredMedia]} />;
   }
 
   if (Platform.OS !== 'web') {
@@ -777,14 +798,40 @@ function NativeVideoPoster({ source, style }) {
 }
 
 function SavedShortPlayer({ item, onClose }) {
-  const player = useVideoPlayer(item.source, (player) => {
+  const webVideoRef = useRef(null);
+  const player = useVideoPlayer(Platform.OS === 'web' ? null : item.source, (player) => {
     player.loop = true;
     player.muted = false;
   });
 
   useEffect(() => {
+    if (Platform.OS === 'web') {
+      const video = webVideoRef.current;
+      if (!video) {
+        return undefined;
+      }
+      video.loop = true;
+      let allowSound = true;
+      const tryPlay = () => {
+        if (allowSound) {
+          video.muted = false;
+        }
+        Promise.resolve(video.play()).catch(() => {
+          if (!allowSound) {
+            return;
+          }
+          allowSound = false;
+          video.muted = true;
+          Promise.resolve(video.play()).catch(() => {});
+        });
+      };
+      tryPlay();
+      video.addEventListener('canplay', tryPlay);
+      return () => video.removeEventListener('canplay', tryPlay);
+    }
+
     if (!player) {
-      return;
+      return undefined;
     }
     player.loop = true;
     player.muted = false;
@@ -792,17 +839,29 @@ function SavedShortPlayer({ item, onClose }) {
       player.muted = true;
       Promise.resolve(player.play()).catch(() => {});
     });
+    return undefined;
   }, [player]);
 
   return (
     <View style={styles.savedPlayer}>
-      <VideoView
-        player={player}
-        style={styles.savedPlayerVideo}
-        contentFit="cover"
-        nativeControls={false}
-        playsInline
-      />
+      {Platform.OS === 'web' ? (
+        <video
+          ref={webVideoRef}
+          src={item.source}
+          playsInline
+          autoPlay
+          loop
+          style={styles.feedVideoFrame}
+        />
+      ) : (
+        <VideoView
+          player={player}
+          style={styles.savedPlayerVideo}
+          contentFit="cover"
+          nativeControls={false}
+          playsInline
+        />
+      )}
       <Pressable onPress={onClose} style={styles.savedPlayerClose} hitSlop={12}>
         <Ionicons name="close" size={22} color={COLORS.white} />
       </Pressable>
@@ -824,7 +883,7 @@ function GalleryCard({ item, onPress }) {
       {item.source ? (
         <VideoPoster source={item.source} style={styles.galleryImage} />
       ) : (
-        <Image source={{ uri: item.image }} style={styles.galleryImage} />
+        <Image source={{ uri: item.image }} resizeMode="cover" style={[styles.galleryImage, styles.centeredMedia]} />
       )}
       <View style={styles.galleryChip}>
         <Ionicons name="play" size={10} color={LIGHT.bg} />
@@ -836,9 +895,8 @@ function GalleryCard({ item, onPress }) {
 
 function MyPageScreen() {
   const focused = useIsFocused();
-  const { savedItems } = useFeedSocial();
+  const { savedItems, playingSaved, openSaved, closeSaved } = useFeedSocial();
   const [tab, setTab] = useState('shorts');
-  const [playing, setPlaying] = useState(null);
   const items = tab === 'shorts' ? MY_SHORTS : savedItems;
 
   return (
@@ -864,7 +922,7 @@ function MyPageScreen() {
         <View style={styles.profileSegment}>
           <Pressable
             onPress={() => {
-              setPlaying(null);
+              closeSaved();
               setTab('shorts');
             }}
             style={[styles.profileSegItem, tab === 'shorts' && styles.profileSegItemOn]}
@@ -875,7 +933,7 @@ function MyPageScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              setPlaying(null);
+              closeSaved();
               setTab('saved');
             }}
             style={[styles.profileSegItem, tab === 'saved' && styles.profileSegItemOn]}
@@ -896,13 +954,13 @@ function MyPageScreen() {
               <GalleryCard
                 key={item.id}
                 item={item}
-                onPress={item.source ? () => setPlaying(item) : undefined}
+                onPress={item.source ? () => openSaved(item) : undefined}
               />
             ))}
           </View>
         )}
       </ScrollView>
-      {playing ? <SavedShortPlayer item={playing} onClose={() => setPlaying(null)} /> : null}
+      {playingSaved ? <SavedShortPlayer item={playingSaved} onClose={closeSaved} /> : null}
     </SafeAreaView>
   );
 }
@@ -983,8 +1041,13 @@ function tabIcon(name, color) {
 }
 
 function FloatingTabBar({ state, descriptors, navigation, insets }) {
+  const { playingSaved } = useFeedSocial();
   const isHome = state.routes[state.index]?.name === 'HomeFeed';
   const iconColor = isHome ? COLORS.white : LIGHT.text;
+
+  if (playingSaved) {
+    return null;
+  }
 
   return (
     <View style={[styles.floatingTabWrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -2165,6 +2228,10 @@ const styles = StyleSheet.create({
   galleryImage: {
     width: '100%',
     height: '100%',
+  },
+  centeredMedia: {
+    objectFit: 'cover',
+    objectPosition: 'center center',
   },
   galleryChip: {
     position: 'absolute',
