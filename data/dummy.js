@@ -37,27 +37,22 @@ export const PROFILE = {
 const FEED_HANDLES = ['@vie.node', '@cjs.dksss', '@nari.step', '@studio.moka', '@jiyuna_scene'];
 
 const FEED_VIEWS = [
-  42800, 128400, 8640, 31600, 17400, 64200, 9800, 22100, 55300, 7600, 41200, 28700, 19300, 73400,
-  156000, 24800, 46900, 91200, 33700, 18400, 27600, 52100, 14900, 36800, 80300,
+  8640, 31600, 17400, 64200, 22100, 55300, 7600, 41200, 28700, 19300, 73400, 46900, 91200, 33700,
+  18400, 27600, 52100, 14900, 36800, 80300,
 ];
 
 const FEED_CLIPS = [
-  { id: 'bad-ateez-2', title: 'BAD 2', artist: 'ATEEZ', file: 'bad-ateez-2.mp4', cover: 'bad.jpg' },
-  { id: 'bad-ateez-1', title: 'BAD', artist: 'ATEEZ', file: 'bad-ateez-1.mp4', cover: 'bad.jpg' },
-  { id: 'bad-ateez-3', title: 'BAD 3', artist: 'ATEEZ', file: 'bad-ateez-3.mp4', cover: 'bad.jpg' },
+  { id: 'bad-ateez-3', title: 'BAD', artist: 'ATEEZ', file: 'bad-ateez-3.mp4', cover: 'bad.jpg' },
   { id: 'combi', title: 'Combi', artist: 'Joucyplug', file: 'combi-joucyplug.mp4', cover: 'combi.jpg' },
   { id: 'crash', title: 'CRASH', artist: 'ALLDAY PROJECT', file: 'crash-allday-project.mp4', cover: 'crash.jpg' },
   { id: 'drama', title: 'Drama', artist: 'aespa', file: 'drama-aespa.mp4', cover: 'drama.jpg' },
-  { id: 'ggez-1', title: 'GGEZ', artist: 'Kaien Nuen, Sugar & M.Sasuke', file: 'ggez-1.mp4', cover: 'ggez.jpg' },
-  { id: 'ggez-2', title: 'GGEZ 2', artist: 'Kaien Nuen, Sugar & M.Sasuke', file: 'ggez-2.mp4', cover: 'ggez.jpg' },
+  { id: 'ggez-2', title: 'GGEZ', artist: 'Kaien Nuen, Sugar & M.Sasuke', file: 'ggez-2.mp4', cover: 'ggez.jpg' },
   { id: 'go-hard', title: 'GO HARD', artist: 'MEOVV', file: 'go-hard-meovv.mp4', cover: 'go-hard.jpg' },
   { id: 'kneel', title: 'Kneel to None', artist: 'Goryeo Yamato', file: 'kneel-to-none.mp4', cover: 'kneel-to-none.jpg' },
   { id: 'lemon-tang', title: 'Lemon Tang', artist: 'Hearts2Hearts', file: 'lemon-tang.mp4', cover: 'lemon-tang.jpg' },
   { id: 'lemonade', title: 'LEMONADE', artist: 'aespa', file: 'lemonade-aespa.mp4', cover: 'lemonade.jpg' },
   { id: 'neon', title: 'NEON', artist: 'A2O', file: 'neon-a2o.mp4', cover: 'neon.jpg' },
   { id: 'perfect-night', title: 'Perfect Night', artist: 'LE SSERAFIM', file: 'perfect-night.mp4', cover: 'perfect-night.jpg' },
-  { id: 'pretty-girl', title: 'Pretty Girl', artist: 'RESCENE', file: 'pretty-girl.mp4', cover: 'pretty-girl.jpg' },
-  { id: 'redred', title: 'REDRED', artist: 'CORTIS', file: 'redred-cortis.mp4', cover: 'redred.jpg' },
   { id: 'rude', title: 'RUDE!', artist: 'Hearts2Hearts', file: 'rude.mp4', cover: 'rude.jpg' },
   { id: 'supernova', title: 'Supernova', artist: 'aespa', file: 'supernova-aespa.mp4', cover: 'supernova.jpg' },
   { id: 'talk', title: 'TALK', artist: 'ALLDAY PROJECT', file: 'talk-allday-project.mp4', cover: 'talk.jpg' },

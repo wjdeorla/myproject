@@ -163,7 +163,7 @@ function FeedPage({ item, isActive, height, bottomInset }) {
       ) : null}
       <VideoView
         player={player}
-        style={styles.feedVideo}
+        style={[styles.feedVideo, styles.feedVideoFrame]}
         contentFit="cover"
         nativeControls={false}
         playsInline
@@ -1342,6 +1342,12 @@ const styles = StyleSheet.create({
   },
   feedVideo: {
     ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  feedVideoFrame: {
+    objectFit: 'cover',
+    objectPosition: 'center center',
   },
   feedVideoFallback: {
     backgroundColor: '#141414',
