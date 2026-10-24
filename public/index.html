@@ -32,6 +32,13 @@
         flex: 1;
         background: #000;
       }
+      video[data-feed-video]::-webkit-media-controls-start-playback-button,
+      video[data-feed-video]::-webkit-media-controls-overlay-play-button {
+        display: none !important;
+        -webkit-appearance: none;
+        opacity: 0;
+        pointer-events: none;
+      }
     </style>
   </head>
 

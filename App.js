@@ -173,10 +173,15 @@ function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
 
   const setWebVideo = useCallback((node) => {
     webVideoRef.current = node;
-    if (node) {
-      markInlineVideo(node);
+    if (!node) {
+      return;
     }
-  }, []);
+    markInlineVideo(node);
+    node.volume = 0;
+    if (isActive) {
+      playInlineVideo(node);
+    }
+  }, [isActive]);
 
   useLayoutEffect(() => {
     if (Platform.OS === 'web') {
@@ -187,25 +192,25 @@ function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
       video.loop = true;
       markInlineVideo(video);
       video.volume = 0;
+      video.controls = false;
       if (video.getAttribute('src') !== videoSource && !String(video.currentSrc || '').endsWith(videoSource)) {
         video.src = videoSource;
       }
       if (!isActive) {
-        video.pause();
         video.preload = 'auto';
-        return undefined;
+        const keepPaused = () => {
+          if (!isActive) {
+            video.pause();
+          }
+        };
+        playInlineVideo(video).then(keepPaused);
+        video.addEventListener('loadeddata', keepPaused);
+        return () => video.removeEventListener('loadeddata', keepPaused);
       }
       video.preload = 'auto';
       const tryPlay = () => {
-        if (!isActive) {
-          video.pause();
-          return;
-        }
         markInlineVideo(video);
         video.volume = 0;
-        if (video.readyState < 2) {
-          return;
-        }
         if (!video.paused && video.currentTime > 0) {
           return;
         }
@@ -247,6 +252,7 @@ function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
             data-feed-key={item.feedKey}
             playsInline
             autoPlay={isActive}
+            controls={false}
             loop
             preload="auto"
             style={StyleSheet.flatten([styles.feedVideoFrame, { width: pageWidth, height }])}
