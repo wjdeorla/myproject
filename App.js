@@ -144,24 +144,22 @@ function markInlineVideo(video) {
   video.setAttribute('muted', '');
 }
 
-function playInlineVideo(video, audible) {
+function playInlineVideo(video) {
   video.setAttribute('playsinline', '');
   video.setAttribute('webkit-playsinline', 'true');
   video.defaultMuted = true;
-  if (audible) {
-    video.muted = false;
-  } else {
-    video.muted = true;
-    video.setAttribute('muted', '');
-  }
+  video.muted = true;
+  video.volume = 0;
+  video.setAttribute('muted', '');
   return Promise.resolve(video.play()).catch(() => {
     video.muted = true;
+    video.volume = 0;
     video.setAttribute('muted', '');
     return Promise.resolve(video.play()).catch(() => {});
   });
 }
 
-function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, bottomInset }) {
+function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
   const { likedIds, savedIds, toggleLike, toggleSave } = useFeedSocial();
   const liked = likedIds.includes(item.id);
   const saved = savedIds.includes(item.id);
@@ -206,12 +204,11 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
       }
       const tryPlay = () => {
         if (!video.paused && video.currentTime > 0) {
-          if (soundOn) {
-            video.muted = false;
-          }
+          video.muted = true;
+          video.volume = 0;
           return;
         }
-        playInlineVideo(video, soundOn);
+        playInlineVideo(video);
       };
       tryPlay();
       video.addEventListener('loadeddata', tryPlay);
@@ -227,7 +224,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
     }
 
     player.loop = true;
-    player.muted = !soundOn;
+    player.muted = true;
 
     if (isActive) {
       Promise.resolve(player.play()).catch(() => {});
@@ -235,7 +232,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
       player.pause();
     }
     return undefined;
-  }, [isActive, loadVideo, player, soundOn, videoSource]);
+  }, [isActive, loadVideo, player, videoSource]);
 
   return (
     <View style={[styles.feedPage, { height }]}>
@@ -243,8 +240,9 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
         <video
           ref={setWebVideo}
           src={loadVideo ? videoSource : undefined}
-          muted={!soundOn}
+          muted
           data-feed-video=""
+          data-feed-key={item.feedKey}
           playsInline
           autoPlay={isActive}
           loop
@@ -348,8 +346,6 @@ function HomeFeedScreen() {
     }
     return windowHeight;
   });
-  const [soundOn, setSoundOn] = useState(false);
-  const soundOnRef = useRef(false);
   const activeIdRef = useRef(feedPages[0].feedKey);
   const feedPagesRef = useRef(feedPages);
   const pageHeightRef = useRef(pageHeight);
@@ -357,7 +353,6 @@ function HomeFeedScreen() {
   const extendingRef = useRef(false);
   feedPagesRef.current = feedPages;
   pageHeightRef.current = pageHeight;
-  soundOnRef.current = soundOn;
 
   const bottomInset = 86 + insets.bottom;
   const onFeedScroll = useCallback((event) => {
@@ -370,6 +365,14 @@ function HomeFeedScreen() {
       if (nextKey && nextKey !== activeIdRef.current) {
         activeIdRef.current = nextKey;
         setActiveId(nextKey);
+        if (Platform.OS === 'web') {
+          const video = [...document.querySelectorAll('video[data-feed-video]')].find(
+            (node) => node.getAttribute('data-feed-key') === nextKey && node.getAttribute('src'),
+          );
+          if (video) {
+            playInlineVideo(video);
+          }
+        }
       }
     }
     const distanceFromEnd = contentSize.height - (contentOffset.y + layoutMeasurement.height);
@@ -451,36 +454,6 @@ function HomeFeedScreen() {
       window.removeEventListener('touchcancel', onTouchEnd);
     };
   }, []);
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !isFocused) {
-      return undefined;
-    }
-    const kick = (event) => {
-      const target = event.target;
-      if (target instanceof Element && target.closest('[data-feed-action]')) {
-        return;
-      }
-      if (!soundOnRef.current) {
-        soundOnRef.current = true;
-        setSoundOn(true);
-      }
-      const viewHeight = window.visualViewport?.height || window.innerHeight;
-      const visible = [...document.querySelectorAll('video[data-feed-video]')].find((video) => {
-        if (!video.getAttribute('src')) {
-          return false;
-        }
-        const rect = video.getBoundingClientRect();
-        const shown = Math.min(rect.bottom, viewHeight) - Math.max(rect.top, 0);
-        return shown > viewHeight * 0.6;
-      });
-      if (!visible) {
-        return;
-      }
-      playInlineVideo(visible, true);
-    };
-    window.addEventListener('pointerdown', kick, { capture: true });
-    return () => window.removeEventListener('pointerdown', kick, { capture: true });
-  }, [isFocused]);
   const activeIndex = Math.max(
     0,
     feedPages.findIndex((page) => page.feedKey === activeId),
@@ -497,7 +470,6 @@ function HomeFeedScreen() {
             item={item}
             isActive={isFocused && item.feedKey === activeId}
             loadVideo={index === activeIndex || index === activeIndex + 1}
-            soundOn={soundOn}
             height={pageHeight}
             bottomInset={bottomInset}
           />
@@ -518,7 +490,7 @@ function HomeFeedScreen() {
         })}
         onScroll={onFeedScroll}
         scrollEventThrottle={16}
-        extraData={`${activeId}-${isFocused}-${loops}-${soundOn}`}
+        extraData={`${activeId}-${isFocused}-${loops}`}
       />
 
       <SafeAreaView style={styles.feedHeader} edges={['top']} pointerEvents="box-none">
