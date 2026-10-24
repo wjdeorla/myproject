@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { DefaultTheme, NavigationContainer, useIsFocused } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -136,6 +136,31 @@ function FeedSocialProvider({ children }) {
   return <FeedSocialContext.Provider value={value}>{children}</FeedSocialContext.Provider>;
 }
 
+function markInlineVideo(video) {
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', 'true');
+  video.defaultMuted = true;
+  video.muted = true;
+  video.setAttribute('muted', '');
+}
+
+function playInlineVideo(video, audible) {
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', 'true');
+  video.defaultMuted = true;
+  if (audible) {
+    video.muted = false;
+  } else {
+    video.muted = true;
+    video.setAttribute('muted', '');
+  }
+  return Promise.resolve(video.play()).catch(() => {
+    video.muted = true;
+    video.setAttribute('muted', '');
+    return Promise.resolve(video.play()).catch(() => {});
+  });
+}
+
 function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, bottomInset }) {
   const { likedIds, savedIds, toggleLike, toggleSave } = useFeedSocial();
   const liked = likedIds.includes(item.id);
@@ -148,7 +173,14 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
     player.muted = true;
   });
 
-  useEffect(() => {
+  const setWebVideo = useCallback((node) => {
+    webVideoRef.current = node;
+    if (node) {
+      markInlineVideo(node);
+    }
+  }, []);
+
+  useLayoutEffect(() => {
     if (Platform.OS === 'web') {
       const video = webVideoRef.current;
       if (!video) {
@@ -156,6 +188,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
       }
       video.loop = true;
       video.preload = loadVideo ? 'auto' : 'none';
+      markInlineVideo(video);
       if (!loadVideo) {
         video.pause();
         if (video.getAttribute('src') || video.currentSrc) {
@@ -168,24 +201,25 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
         video.src = videoSource;
       }
       if (!isActive) {
+        video.pause();
         return undefined;
       }
       const tryPlay = () => {
-        if (!video.paused) {
+        if (!video.paused && video.currentTime > 0) {
+          if (soundOn) {
+            video.muted = false;
+          }
           return;
         }
-        video.muted = !soundOn;
-        Promise.resolve(video.play()).catch(() => {
-          if (!video.paused) {
-            return;
-          }
-          video.muted = true;
-          Promise.resolve(video.play()).catch(() => {});
-        });
+        playInlineVideo(video, soundOn);
       };
       tryPlay();
+      video.addEventListener('loadeddata', tryPlay);
       video.addEventListener('canplay', tryPlay);
-      return () => video.removeEventListener('canplay', tryPlay);
+      return () => {
+        video.removeEventListener('loadeddata', tryPlay);
+        video.removeEventListener('canplay', tryPlay);
+      };
     }
 
     if (!player) {
@@ -207,7 +241,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
     <View style={[styles.feedPage, { height }]}>
       {Platform.OS === 'web' ? (
         <video
-          ref={webVideoRef}
+          ref={setWebVideo}
           src={loadVideo ? videoSource : undefined}
           muted={!soundOn}
           data-feed-video=""
@@ -319,6 +353,7 @@ function HomeFeedScreen() {
   const activeIdRef = useRef(feedPages[0].feedKey);
   const feedPagesRef = useRef(feedPages);
   const pageHeightRef = useRef(pageHeight);
+  const listRef = useRef(null);
   const extendingRef = useRef(false);
   feedPagesRef.current = feedPages;
   pageHeightRef.current = pageHeight;
@@ -363,26 +398,57 @@ function HomeFeedScreen() {
     if (Platform.OS !== 'web') {
       return undefined;
     }
-    let settled = false;
+    let touching = false;
+    let pending = false;
     const apply = () => {
       const next = Math.round(window.visualViewport?.height || window.innerHeight);
       if (next <= 0) {
         return;
       }
-      if (settled && Math.abs(next - pageHeightRef.current) < 80) {
+      const delta = Math.abs(next - pageHeightRef.current);
+      if (touching && delta < 140) {
+        pending = true;
         return;
       }
-      settled = true;
-      if (Math.abs(next - pageHeightRef.current) > 1) {
-        setPageHeight(next);
+      pending = false;
+      document.documentElement.style.height = `${next}px`;
+      document.body.style.height = `${next}px`;
+      const root = document.getElementById('root');
+      if (root) {
+        root.style.height = `${next}px`;
+      }
+      if (delta <= 1) {
+        return;
+      }
+      const pages = feedPagesRef.current;
+      const index = Math.max(0, pages.findIndex((page) => page.feedKey === activeIdRef.current));
+      pageHeightRef.current = next;
+      setPageHeight(next);
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({ offset: index * next, animated: false });
+      });
+    };
+    const onTouchStart = () => {
+      touching = true;
+    };
+    const onTouchEnd = () => {
+      touching = false;
+      if (pending) {
+        apply();
       }
     };
     apply();
     window.visualViewport?.addEventListener('resize', apply);
     window.addEventListener('orientationchange', apply);
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
     return () => {
       window.visualViewport?.removeEventListener('resize', apply);
       window.removeEventListener('orientationchange', apply);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
     };
   }, []);
   useEffect(() => {
@@ -398,22 +464,19 @@ function HomeFeedScreen() {
         soundOnRef.current = true;
         setSoundOn(true);
       }
+      const viewHeight = window.visualViewport?.height || window.innerHeight;
       const visible = [...document.querySelectorAll('video[data-feed-video]')].find((video) => {
         if (!video.getAttribute('src')) {
           return false;
         }
         const rect = video.getBoundingClientRect();
-        const center = rect.top + rect.height / 2;
-        return center > 0 && center < window.innerHeight;
+        const shown = Math.min(rect.bottom, viewHeight) - Math.max(rect.top, 0);
+        return shown > viewHeight * 0.6;
       });
       if (!visible) {
         return;
       }
-      visible.muted = false;
-      Promise.resolve(visible.play()).catch(() => {
-        visible.muted = true;
-        Promise.resolve(visible.play()).catch(() => {});
-      });
+      playInlineVideo(visible, true);
     };
     window.addEventListener('pointerdown', kick, { capture: true });
     return () => window.removeEventListener('pointerdown', kick, { capture: true });
@@ -426,6 +489,7 @@ function HomeFeedScreen() {
   return (
     <View style={[styles.feedRoot, Platform.OS === 'web' && { height: pageHeight }]} onLayout={onLayout}>
       <FlatList
+        ref={listRef}
         data={feedPages}
         keyExtractor={(item) => item.feedKey}
         renderItem={({ item, index }) => (
