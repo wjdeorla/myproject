@@ -159,105 +159,38 @@ function playInlineVideo(video) {
   });
 }
 
-function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
+function FeedPage({ item, isActive, loadVideo = false, hideCover = false, height, bottomInset }) {
   const { likedIds, savedIds, toggleLike, toggleSave } = useFeedSocial();
   const liked = likedIds.includes(item.id);
   const saved = savedIds.includes(item.id);
   const videoSource = typeof item.source === 'string' ? item.source : item.source?.uri;
-  const { width: pageWidth } = useWindowDimensions();
-  const webVideoRef = useRef(null);
   const player = useVideoPlayer(Platform.OS === 'web' || !loadVideo ? null : videoSource, (player) => {
     player.loop = true;
     player.muted = true;
   });
 
-  const setWebVideo = useCallback((node) => {
-    webVideoRef.current = node;
-    if (!node) {
-      return;
-    }
-    markInlineVideo(node);
-    node.volume = 0;
-    if (isActive) {
-      playInlineVideo(node);
-    }
-  }, [isActive]);
-
-  useLayoutEffect(() => {
-    if (Platform.OS === 'web') {
-      const video = webVideoRef.current;
-      if (!video) {
-        return undefined;
-      }
-      video.loop = true;
-      markInlineVideo(video);
-      video.volume = 0;
-      video.controls = false;
-      if (video.getAttribute('src') !== videoSource && !String(video.currentSrc || '').endsWith(videoSource)) {
-        video.src = videoSource;
-      }
-      if (!isActive) {
-        video.preload = 'auto';
-        const keepPaused = () => {
-          if (!isActive) {
-            video.pause();
-          }
-        };
-        playInlineVideo(video).then(keepPaused);
-        video.addEventListener('loadeddata', keepPaused);
-        return () => video.removeEventListener('loadeddata', keepPaused);
-      }
-      video.preload = 'auto';
-      const tryPlay = () => {
-        markInlineVideo(video);
-        video.volume = 0;
-        if (!video.paused && video.currentTime > 0) {
-          return;
-        }
-        playInlineVideo(video);
-      };
-      tryPlay();
-      video.addEventListener('loadeddata', tryPlay);
-      video.addEventListener('canplay', tryPlay);
-      return () => {
-        video.removeEventListener('loadeddata', tryPlay);
-        video.removeEventListener('canplay', tryPlay);
-      };
-    }
-
-    if (!player) {
+  useEffect(() => {
+    if (Platform.OS === 'web' || !player) {
       return undefined;
     }
-
     player.loop = true;
     player.muted = true;
-
     if (isActive) {
       Promise.resolve(player.play()).catch(() => {});
     } else {
       player.pause();
     }
     return undefined;
-  }, [isActive, loadVideo, player, videoSource]);
+  }, [isActive, player]);
 
   return (
-    <View style={[styles.feedPage, { height }]}>
-      {Platform.OS === 'web' ? (
-        loadVideo ? (
-          <video
-            ref={setWebVideo}
-            src={videoSource}
-            muted
-            data-feed-video=""
-            data-feed-key={item.feedKey}
-            playsInline
-            autoPlay={isActive}
-            controls={false}
-            loop
-            preload="auto"
-            style={StyleSheet.flatten([styles.feedVideoFrame, { width: pageWidth, height }])}
-          />
-        ) : null
+    <View style={[styles.feedPage, { height }, hideCover && styles.feedPageClear]}>
+      {Platform.OS === 'web' || !loadVideo ? (
+        <Image
+          source={{ uri: item.cover }}
+          resizeMode="cover"
+          style={[styles.feedCover, hideCover && styles.feedCoverHidden]}
+        />
       ) : (
         <VideoView
           player={player}
@@ -354,10 +287,22 @@ function HomeFeedScreen() {
   const feedPagesRef = useRef(feedPages);
   const pageHeightRef = useRef(pageHeight);
   const extendingRef = useRef(false);
+  const homeVideoRef = useRef(null);
+  const preloadRef = useRef(null);
+  const scrollIdleRef = useRef(null);
+  const [videoOn, setVideoOn] = useState(false);
+  const [scrolling, setScrolling] = useState(false);
   feedPagesRef.current = feedPages;
   pageHeightRef.current = pageHeight;
 
   const bottomInset = 86 + insets.bottom;
+  const activeIndex = Math.max(0, feedPages.findIndex((page) => page.feedKey === activeId));
+  const activeItem = feedPages[activeIndex] || feedPages[0];
+  const nextItem = feedPages[activeIndex + 1];
+  const activeSource = typeof activeItem?.source === 'string' ? activeItem.source : activeItem?.source?.uri;
+  const nextSource = typeof nextItem?.source === 'string' ? nextItem.source : nextItem?.source?.uri;
+  const showVideo = Platform.OS === 'web' && videoOn && !scrolling && isFocused;
+
   const onFeedScroll = useCallback((event) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const height = layoutMeasurement.height || pageHeightRef.current;
@@ -368,15 +313,27 @@ function HomeFeedScreen() {
       if (nextKey && nextKey !== activeIdRef.current) {
         activeIdRef.current = nextKey;
         setActiveId(nextKey);
+        setVideoOn(false);
         if (Platform.OS === 'web') {
-          const video = [...document.querySelectorAll('video[data-feed-video]')].find(
-            (node) => node.getAttribute('data-feed-key') === nextKey && node.getAttribute('src'),
-          );
-          if (video && video.readyState >= 2) {
+          const video = homeVideoRef.current;
+          const item = pages[index];
+          const source = typeof item?.source === 'string' ? item.source : item?.source?.uri;
+          if (video && source) {
+            markInlineVideo(video);
+            video.volume = 0;
+            video.controls = false;
+            if (video.getAttribute('src') !== source && !String(video.currentSrc || '').endsWith(source)) {
+              video.src = source;
+            }
             playInlineVideo(video);
           }
         }
       }
+    }
+    if (Platform.OS === 'web') {
+      setScrolling(true);
+      clearTimeout(scrollIdleRef.current);
+      scrollIdleRef.current = setTimeout(() => setScrolling(false), 140);
     }
     const distanceFromEnd = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     if (distanceFromEnd > height * 3) {
@@ -391,6 +348,59 @@ function HomeFeedScreen() {
     setLoops(loopsRef.current);
   }, []);
 
+  useLayoutEffect(() => {
+    if (Platform.OS !== 'web') {
+      return undefined;
+    }
+    const video = homeVideoRef.current;
+    if (!video || !activeSource) {
+      return undefined;
+    }
+    markInlineVideo(video);
+    video.volume = 0;
+    video.loop = true;
+    video.controls = false;
+    video.preload = 'auto';
+    const same = video.getAttribute('src') === activeSource || String(video.currentSrc || '').endsWith(activeSource);
+    if (!same) {
+      setVideoOn(false);
+      video.src = activeSource;
+    }
+    let cancelled = false;
+    const show = () => {
+      if (!cancelled && !video.paused && video.readyState >= 2) {
+        setVideoOn(true);
+      }
+    };
+    const tryPlay = () => {
+      if (!isFocused) {
+        video.pause();
+        setVideoOn(false);
+        return;
+      }
+      playInlineVideo(video).then(show);
+    };
+    tryPlay();
+    video.addEventListener('playing', show);
+    video.addEventListener('canplay', tryPlay);
+    const preload = preloadRef.current;
+    if (preload && nextSource) {
+      preload.muted = true;
+      preload.defaultMuted = true;
+      preload.preload = 'auto';
+      if (preload.getAttribute('src') !== nextSource) {
+        preload.src = nextSource;
+      }
+    }
+    return () => {
+      cancelled = true;
+      video.removeEventListener('playing', show);
+      video.removeEventListener('canplay', tryPlay);
+    };
+  }, [activeSource, isFocused, nextSource]);
+
+  useEffect(() => () => clearTimeout(scrollIdleRef.current), []);
+
   const onLayout = useCallback((event) => {
     const nextHeight = event.nativeEvent.layout.height;
     if (nextHeight > 0 && Math.abs(nextHeight - pageHeightRef.current) > 1) {
@@ -399,22 +409,45 @@ function HomeFeedScreen() {
   }, []);
   return (
     <View style={styles.feedRoot} onLayout={onLayout}>
+      {Platform.OS === 'web' ? (
+        <>
+          <video
+            ref={homeVideoRef}
+            muted
+            playsInline
+            loop
+            preload="auto"
+            controls={false}
+            data-feed-video=""
+            style={showVideo ? styles.homeVideo : styles.homeVideoHidden}
+          />
+          <video
+            ref={preloadRef}
+            muted
+            playsInline
+            preload="auto"
+            controls={false}
+            style={styles.homeVideoPreload}
+          />
+        </>
+      ) : null}
       <FlatList
         data={feedPages}
         keyExtractor={(item) => item.feedKey}
         renderItem={({ item, index }) => (
           <FeedPage
             item={item}
-            isActive={isFocused && index < 2 && item.feedKey === activeId}
-            loadVideo={index < 2}
+            isActive={isFocused && item.feedKey === activeId}
+            loadVideo={Platform.OS !== 'web' && (index === activeIndex || index === activeIndex + 1)}
+            hideCover={showVideo && item.feedKey === activeId}
             height={pageHeight}
             bottomInset={bottomInset}
           />
         )}
         pagingEnabled
-        initialNumToRender={2}
-        maxToRenderPerBatch={1}
-        windowSize={2}
+        initialNumToRender={3}
+        maxToRenderPerBatch={2}
+        windowSize={5}
         showsVerticalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={pageHeight}
@@ -427,7 +460,8 @@ function HomeFeedScreen() {
         })}
         onScroll={onFeedScroll}
         scrollEventThrottle={16}
-        extraData={`${activeId}-${isFocused}-${loops}`}
+        extraData={`${activeId}-${isFocused}-${loops}-${showVideo}`}
+        style={styles.feedList}
       />
 
       <SafeAreaView style={styles.feedHeader} edges={['top']} pointerEvents="box-none">
@@ -1486,11 +1520,62 @@ const styles = StyleSheet.create({
   feedRoot: {
     flex: 1,
     backgroundColor: COLORS.bg,
+    position: 'relative',
+  },
+  feedList: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    zIndex: 1,
   },
   feedPage: {
     width: '100%',
     backgroundColor: COLORS.bg,
     overflow: 'hidden',
+  },
+  feedPageClear: {
+    backgroundColor: 'transparent',
+  },
+  feedCover: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  feedCoverHidden: {
+    opacity: 0,
+  },
+  homeVideo: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    backgroundColor: 'transparent',
+    pointerEvents: 'none',
+    zIndex: 0,
+  },
+  homeVideoHidden: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    opacity: 0,
+    backgroundColor: 'transparent',
+    pointerEvents: 'none',
+    zIndex: 0,
+  },
+  homeVideoPreload: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+    opacity: 0,
+    pointerEvents: 'none',
   },
   feedVideo: {
     ...StyleSheet.absoluteFillObject,
@@ -1518,6 +1603,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    zIndex: 2,
   },
   feedTopBar: {
     height: 44,
