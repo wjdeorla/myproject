@@ -391,11 +391,6 @@ function HomeFeedScreen() {
       setPageHeight(nextHeight);
     }
   }, []);
-  const activeIndex = Math.max(
-    0,
-    feedPages.findIndex((page) => page.feedKey === activeId),
-  );
-
   return (
     <View style={styles.feedRoot} onLayout={onLayout}>
       <FlatList
@@ -404,8 +399,8 @@ function HomeFeedScreen() {
         renderItem={({ item, index }) => (
           <FeedPage
             item={item}
-            isActive={isFocused && item.feedKey === activeId}
-            loadVideo={index === activeIndex || index === activeIndex + 1}
+            isActive={isFocused && index < 2 && item.feedKey === activeId}
+            loadVideo={index < 2}
             height={pageHeight}
             bottomInset={bottomInset}
           />
