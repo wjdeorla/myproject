@@ -141,6 +141,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
   const liked = likedIds.includes(item.id);
   const saved = savedIds.includes(item.id);
   const videoSource = typeof item.source === 'string' ? item.source : item.source?.uri;
+  const { width: pageWidth } = useWindowDimensions();
   const webVideoRef = useRef(null);
   const player = useVideoPlayer(Platform.OS === 'web' || !loadVideo ? null : videoSource, (player) => {
     player.loop = true;
@@ -214,7 +215,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
           autoPlay={isActive}
           loop
           preload={loadVideo ? 'auto' : 'none'}
-          style={styles.feedVideoFrame}
+          style={[styles.feedVideoFrame, { width: pageWidth, height }]}
         />
       ) : (
         <VideoView
@@ -307,7 +308,12 @@ function HomeFeedScreen() {
   const [loops, setLoops] = useState(1);
   const feedPages = useMemo(() => repeatFeed(loops), [loops]);
   const [activeId, setActiveId] = useState(feedPages[0].feedKey);
-  const [pageHeight, setPageHeight] = useState(windowHeight);
+  const [pageHeight, setPageHeight] = useState(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      return Math.round(window.visualViewport?.height || window.innerHeight || windowHeight);
+    }
+    return windowHeight;
+  });
   const [soundOn, setSoundOn] = useState(false);
   const soundOnRef = useRef(false);
   const activeIdRef = useRef(feedPages[0].feedKey);
@@ -321,7 +327,7 @@ function HomeFeedScreen() {
   const bottomInset = 86 + insets.bottom;
   const onFeedScroll = useCallback((event) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const height = layoutMeasurement.height || pageHeightRef.current;
+    const height = pageHeightRef.current;
     if (height > 0) {
       const pages = feedPagesRef.current;
       const index = Math.min(pages.length - 1, Math.max(0, Math.round(contentOffset.y / height)));
@@ -345,10 +351,39 @@ function HomeFeedScreen() {
   }, []);
 
   const onLayout = useCallback((event) => {
+    if (Platform.OS === 'web') {
+      return;
+    }
     const nextHeight = event.nativeEvent.layout.height;
     if (nextHeight > 0 && Math.abs(nextHeight - pageHeightRef.current) > 1) {
       setPageHeight(nextHeight);
     }
+  }, []);
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return undefined;
+    }
+    let settled = false;
+    const apply = () => {
+      const next = Math.round(window.visualViewport?.height || window.innerHeight);
+      if (next <= 0) {
+        return;
+      }
+      if (settled && Math.abs(next - pageHeightRef.current) < 80) {
+        return;
+      }
+      settled = true;
+      if (Math.abs(next - pageHeightRef.current) > 1) {
+        setPageHeight(next);
+      }
+    };
+    apply();
+    window.visualViewport?.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', apply);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', apply);
+      window.removeEventListener('orientationchange', apply);
+    };
   }, []);
   useEffect(() => {
     if (Platform.OS !== 'web' || !isFocused) {
@@ -389,7 +424,7 @@ function HomeFeedScreen() {
   );
 
   return (
-    <View style={styles.feedRoot} onLayout={onLayout}>
+    <View style={[styles.feedRoot, Platform.OS === 'web' && { height: pageHeight }]} onLayout={onLayout}>
       <FlatList
         data={feedPages}
         keyExtractor={(item) => item.feedKey}
