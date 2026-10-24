@@ -131,19 +131,39 @@ function FeedSocialProvider({ children }) {
   return <FeedSocialContext.Provider value={value}>{children}</FeedSocialContext.Provider>;
 }
 
-function FeedPage({ item, isActive, height, bottomInset }) {
+function FeedPage({ item, isActive, loadVideo = true, height, bottomInset }) {
   const { likedIds, savedIds, toggleLike, toggleSave } = useFeedSocial();
   const liked = likedIds.includes(item.id);
   const saved = savedIds.includes(item.id);
   const videoSource = typeof item.source === 'string' ? item.source : item.source?.uri;
-  const player = useVideoPlayer(videoSource, (player) => {
+  const webVideoRef = useRef(null);
+  const player = useVideoPlayer(Platform.OS === 'web' || !loadVideo ? null : videoSource, (player) => {
     player.loop = true;
     player.muted = true;
   });
 
   useEffect(() => {
+    if (Platform.OS === 'web') {
+      const video = webVideoRef.current;
+      if (!video) {
+        return undefined;
+      }
+      video.muted = true;
+      video.loop = true;
+      if (!isActive || !loadVideo) {
+        video.pause();
+        return undefined;
+      }
+      const tryPlay = () => {
+        Promise.resolve(video.play()).catch(() => {});
+      };
+      tryPlay();
+      video.addEventListener('canplay', tryPlay);
+      return () => video.removeEventListener('canplay', tryPlay);
+    }
+
     if (!player) {
-      return;
+      return undefined;
     }
 
     player.loop = true;
@@ -154,20 +174,31 @@ function FeedPage({ item, isActive, height, bottomInset }) {
     } else {
       player.pause();
     }
-  }, [isActive, player]);
+    return undefined;
+  }, [isActive, loadVideo, player, videoSource]);
 
   return (
     <View style={[styles.feedPage, { height }]}>
       {Platform.OS === 'web' ? (
-        <View style={[styles.feedVideo, styles.feedVideoFallback]} />
-      ) : null}
-      <VideoView
-        player={player}
-        style={[styles.feedVideo, styles.feedVideoFrame]}
-        contentFit="cover"
-        nativeControls={false}
-        playsInline
-      />
+        <video
+          ref={webVideoRef}
+          src={loadVideo ? videoSource : undefined}
+          muted
+          playsInline
+          autoPlay={isActive}
+          loop
+          preload={loadVideo ? 'auto' : 'none'}
+          style={styles.feedVideoFrame}
+        />
+      ) : (
+        <VideoView
+          player={player}
+          style={styles.feedVideo}
+          contentFit="cover"
+          nativeControls={false}
+          playsInline
+        />
+      )}
       <View style={[styles.feedBottom, { paddingBottom: bottomInset }]}>
         <View style={styles.feedMeta}>
           <Text style={styles.feedHandle}>{item.handle}</Text>
@@ -246,8 +277,8 @@ function HomeFeedScreen() {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { height: windowHeight } = useWindowDimensions();
-  const loopsRef = useRef(2);
-  const [loops, setLoops] = useState(2);
+  const loopsRef = useRef(1);
+  const [loops, setLoops] = useState(1);
   const feedPages = useMemo(() => repeatFeed(loops), [loops]);
   const [activeId, setActiveId] = useState(feedPages[0].feedKey);
   const [pageHeight, setPageHeight] = useState(windowHeight);
@@ -285,16 +316,21 @@ function HomeFeedScreen() {
       setPageHeight(nextHeight);
     }
   }, []);
+  const activeIndex = Math.max(
+    0,
+    feedPages.findIndex((page) => page.feedKey === activeId),
+  );
 
   return (
     <View style={styles.feedRoot} onLayout={onLayout}>
       <FlatList
         data={feedPages}
         keyExtractor={(item) => item.feedKey}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <FeedPage
             item={item}
             isActive={isFocused && item.feedKey === activeId}
+            loadVideo={Math.abs(index - activeIndex) <= 1}
             height={pageHeight}
             bottomInset={bottomInset}
           />
@@ -1346,8 +1382,17 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   feedVideoFrame: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
     objectFit: 'cover',
     objectPosition: 'center center',
+    backgroundColor: '#000000',
+    pointerEvents: 'none',
   },
   feedVideoFallback: {
     backgroundColor: '#141414',
