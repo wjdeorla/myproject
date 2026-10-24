@@ -159,7 +159,7 @@ function playInlineVideo(video) {
   });
 }
 
-function FeedPage({ item, isActive, loadVideo = false, hideCover = false, height, bottomInset }) {
+function FeedPage({ item, isActive, loadVideo = false, height, bottomInset }) {
   const { likedIds, savedIds, toggleLike, toggleSave } = useFeedSocial();
   const liked = likedIds.includes(item.id);
   const saved = savedIds.includes(item.id);
@@ -184,14 +184,8 @@ function FeedPage({ item, isActive, loadVideo = false, hideCover = false, height
   }, [isActive, player]);
 
   return (
-    <View style={[styles.feedPage, { height }, hideCover && styles.feedPageClear]}>
-      {Platform.OS === 'web' || !loadVideo ? (
-        <Image
-          source={{ uri: item.cover }}
-          resizeMode="cover"
-          style={[styles.feedCover, hideCover && styles.feedCoverHidden]}
-        />
-      ) : (
+    <View style={[styles.feedPage, { height }, Platform.OS === 'web' && styles.feedPageClear]}>
+      {Platform.OS === 'web' ? null : loadVideo ? (
         <VideoView
           player={player}
           style={styles.feedVideo}
@@ -199,6 +193,8 @@ function FeedPage({ item, isActive, loadVideo = false, hideCover = false, height
           nativeControls={false}
           playsInline
         />
+      ) : (
+        <Image source={{ uri: item.cover }} resizeMode="cover" style={styles.feedCover} />
       )}
       <View style={[styles.feedBottom, { paddingBottom: bottomInset }]}>
         <View style={styles.feedMeta}>
@@ -289,9 +285,6 @@ function HomeFeedScreen() {
   const extendingRef = useRef(false);
   const homeVideoRef = useRef(null);
   const preloadRef = useRef(null);
-  const scrollIdleRef = useRef(null);
-  const [videoOn, setVideoOn] = useState(false);
-  const [scrolling, setScrolling] = useState(false);
   feedPagesRef.current = feedPages;
   pageHeightRef.current = pageHeight;
 
@@ -301,7 +294,6 @@ function HomeFeedScreen() {
   const nextItem = feedPages[activeIndex + 1];
   const activeSource = typeof activeItem?.source === 'string' ? activeItem.source : activeItem?.source?.uri;
   const nextSource = typeof nextItem?.source === 'string' ? nextItem.source : nextItem?.source?.uri;
-  const showVideo = Platform.OS === 'web' && videoOn && !scrolling && isFocused;
 
   const onFeedScroll = useCallback((event) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -313,7 +305,6 @@ function HomeFeedScreen() {
       if (nextKey && nextKey !== activeIdRef.current) {
         activeIdRef.current = nextKey;
         setActiveId(nextKey);
-        setVideoOn(false);
         if (Platform.OS === 'web') {
           const video = homeVideoRef.current;
           const item = pages[index];
@@ -329,11 +320,6 @@ function HomeFeedScreen() {
           }
         }
       }
-    }
-    if (Platform.OS === 'web') {
-      setScrolling(true);
-      clearTimeout(scrollIdleRef.current);
-      scrollIdleRef.current = setTimeout(() => setScrolling(false), 140);
     }
     const distanceFromEnd = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     if (distanceFromEnd > height * 3) {
@@ -363,25 +349,16 @@ function HomeFeedScreen() {
     video.preload = 'auto';
     const same = video.getAttribute('src') === activeSource || String(video.currentSrc || '').endsWith(activeSource);
     if (!same) {
-      setVideoOn(false);
       video.src = activeSource;
     }
-    let cancelled = false;
-    const show = () => {
-      if (!cancelled && !video.paused && video.readyState >= 2) {
-        setVideoOn(true);
-      }
-    };
     const tryPlay = () => {
       if (!isFocused) {
         video.pause();
-        setVideoOn(false);
         return;
       }
-      playInlineVideo(video).then(show);
+      playInlineVideo(video);
     };
     tryPlay();
-    video.addEventListener('playing', show);
     video.addEventListener('canplay', tryPlay);
     const preload = preloadRef.current;
     if (preload && nextSource) {
@@ -393,13 +370,9 @@ function HomeFeedScreen() {
       }
     }
     return () => {
-      cancelled = true;
-      video.removeEventListener('playing', show);
       video.removeEventListener('canplay', tryPlay);
     };
   }, [activeSource, isFocused, nextSource]);
-
-  useEffect(() => () => clearTimeout(scrollIdleRef.current), []);
 
   const onLayout = useCallback((event) => {
     const nextHeight = event.nativeEvent.layout.height;
@@ -419,7 +392,7 @@ function HomeFeedScreen() {
             preload="auto"
             controls={false}
             data-feed-video=""
-            style={showVideo ? styles.homeVideo : styles.homeVideoHidden}
+            style={styles.homeVideo}
           />
           <video
             ref={preloadRef}
@@ -439,7 +412,6 @@ function HomeFeedScreen() {
             item={item}
             isActive={isFocused && item.feedKey === activeId}
             loadVideo={Platform.OS !== 'web' && (index === activeIndex || index === activeIndex + 1)}
-            hideCover={showVideo && item.feedKey === activeId}
             height={pageHeight}
             bottomInset={bottomInset}
           />
@@ -460,7 +432,7 @@ function HomeFeedScreen() {
         })}
         onScroll={onFeedScroll}
         scrollEventThrottle={16}
-        extraData={`${activeId}-${isFocused}-${loops}-${showVideo}`}
+        extraData={`${activeId}-${isFocused}-${loops}`}
         style={styles.feedList}
       />
 
@@ -1539,9 +1511,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-  },
-  feedCoverHidden: {
-    opacity: 0,
   },
   homeVideo: {
     position: 'absolute',
