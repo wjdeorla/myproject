@@ -340,16 +340,10 @@ function HomeFeedScreen() {
   const [loops, setLoops] = useState(1);
   const feedPages = useMemo(() => repeatFeed(loops), [loops]);
   const [activeId, setActiveId] = useState(feedPages[0].feedKey);
-  const [pageHeight, setPageHeight] = useState(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      return Math.round(window.visualViewport?.height || window.innerHeight || windowHeight);
-    }
-    return windowHeight;
-  });
+  const [pageHeight, setPageHeight] = useState(windowHeight);
   const activeIdRef = useRef(feedPages[0].feedKey);
   const feedPagesRef = useRef(feedPages);
   const pageHeightRef = useRef(pageHeight);
-  const listRef = useRef(null);
   const extendingRef = useRef(false);
   feedPagesRef.current = feedPages;
   pageHeightRef.current = pageHeight;
@@ -357,7 +351,7 @@ function HomeFeedScreen() {
   const bottomInset = 86 + insets.bottom;
   const onFeedScroll = useCallback((event) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const height = pageHeightRef.current;
+    const height = layoutMeasurement.height || pageHeightRef.current;
     if (height > 0) {
       const pages = feedPagesRef.current;
       const index = Math.min(pages.length - 1, Math.max(0, Math.round(contentOffset.y / height)));
@@ -389,70 +383,10 @@ function HomeFeedScreen() {
   }, []);
 
   const onLayout = useCallback((event) => {
-    if (Platform.OS === 'web') {
-      return;
-    }
     const nextHeight = event.nativeEvent.layout.height;
     if (nextHeight > 0 && Math.abs(nextHeight - pageHeightRef.current) > 1) {
       setPageHeight(nextHeight);
     }
-  }, []);
-  useEffect(() => {
-    if (Platform.OS !== 'web') {
-      return undefined;
-    }
-    let touching = false;
-    let pending = false;
-    const apply = () => {
-      const next = Math.round(window.visualViewport?.height || window.innerHeight);
-      if (next <= 0) {
-        return;
-      }
-      const delta = Math.abs(next - pageHeightRef.current);
-      if (touching && delta < 140) {
-        pending = true;
-        return;
-      }
-      pending = false;
-      document.documentElement.style.height = `${next}px`;
-      document.body.style.height = `${next}px`;
-      const root = document.getElementById('root');
-      if (root) {
-        root.style.height = `${next}px`;
-      }
-      if (delta <= 1) {
-        return;
-      }
-      const pages = feedPagesRef.current;
-      const index = Math.max(0, pages.findIndex((page) => page.feedKey === activeIdRef.current));
-      pageHeightRef.current = next;
-      setPageHeight(next);
-      requestAnimationFrame(() => {
-        listRef.current?.scrollToOffset({ offset: index * next, animated: false });
-      });
-    };
-    const onTouchStart = () => {
-      touching = true;
-    };
-    const onTouchEnd = () => {
-      touching = false;
-      if (pending) {
-        apply();
-      }
-    };
-    apply();
-    window.visualViewport?.addEventListener('resize', apply);
-    window.addEventListener('orientationchange', apply);
-    window.addEventListener('touchstart', onTouchStart, { passive: true });
-    window.addEventListener('touchend', onTouchEnd);
-    window.addEventListener('touchcancel', onTouchEnd);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', apply);
-      window.removeEventListener('orientationchange', apply);
-      window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('touchcancel', onTouchEnd);
-    };
   }, []);
   const activeIndex = Math.max(
     0,
@@ -460,9 +394,8 @@ function HomeFeedScreen() {
   );
 
   return (
-    <View style={[styles.feedRoot, Platform.OS === 'web' && { height: pageHeight }]} onLayout={onLayout}>
+    <View style={styles.feedRoot} onLayout={onLayout}>
       <FlatList
-        ref={listRef}
         data={feedPages}
         keyExtractor={(item) => item.feedKey}
         renderItem={({ item, index }) => (
