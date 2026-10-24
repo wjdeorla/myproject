@@ -153,14 +153,34 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
       if (!video) {
         return undefined;
       }
-      video.muted = !soundOn;
       video.loop = true;
-      if (!isActive || !loadVideo) {
+      if (!loadVideo) {
+        video.pause();
+        if (video.getAttribute('src')) {
+          video.removeAttribute('src');
+          video.load();
+        }
+        return undefined;
+      }
+      if (video.getAttribute('src') !== videoSource) {
+        video.src = videoSource;
+      }
+      if (!isActive) {
         video.pause();
         return undefined;
       }
       const tryPlay = () => {
-        Promise.resolve(video.play()).catch(() => {});
+        if (!video.paused) {
+          return;
+        }
+        video.muted = !soundOn;
+        Promise.resolve(video.play()).catch(() => {
+          if (!video.paused) {
+            return;
+          }
+          video.muted = true;
+          Promise.resolve(video.play()).catch(() => {});
+        });
       };
       tryPlay();
       video.addEventListener('canplay', tryPlay);
@@ -172,7 +192,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
     }
 
     player.loop = true;
-    player.muted = true;
+    player.muted = !soundOn;
 
     if (isActive) {
       Promise.resolve(player.play()).catch(() => {});
@@ -189,6 +209,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
           ref={webVideoRef}
           src={loadVideo ? videoSource : undefined}
           muted={!soundOn}
+          data-feed-video=""
           playsInline
           autoPlay={isActive}
           loop
@@ -288,33 +309,40 @@ function HomeFeedScreen() {
   const [activeId, setActiveId] = useState(feedPages[0].feedKey);
   const [pageHeight, setPageHeight] = useState(windowHeight);
   const [soundOn, setSoundOn] = useState(false);
+  const soundOnRef = useRef(false);
+  const activeIdRef = useRef(feedPages[0].feedKey);
+  const feedPagesRef = useRef(feedPages);
+  const pageHeightRef = useRef(pageHeight);
+  const extendingRef = useRef(false);
+  feedPagesRef.current = feedPages;
+  pageHeightRef.current = pageHeight;
+  soundOnRef.current = soundOn;
 
   const bottomInset = 86 + insets.bottom;
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 80 }).current;
-  const extendingRef = useRef(false);
-  const onViewableItemsChanged = useRef(({ viewableItems }) => {
-    const nextKey = viewableItems[0]?.item?.feedKey;
-    if (nextKey) {
-      setActiveId(nextKey);
+  const onFeedScroll = useCallback((event) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const height = pageHeightRef.current;
+    if (height > 0) {
+      const pages = feedPagesRef.current;
+      const index = Math.min(pages.length - 1, Math.max(0, Math.round(contentOffset.y / height)));
+      const nextKey = pages[index]?.feedKey;
+      if (nextKey && nextKey !== activeIdRef.current) {
+        activeIdRef.current = nextKey;
+        setActiveId(nextKey);
+      }
     }
-  }).current;
-  const onFeedScroll = useCallback(
-    (event) => {
-      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-      const distanceFromEnd = contentSize.height - (contentOffset.y + layoutMeasurement.height);
-      if (distanceFromEnd > pageHeight * 3) {
-        extendingRef.current = false;
-        return;
-      }
-      if (extendingRef.current || pageHeight <= 0) {
-        return;
-      }
-      extendingRef.current = true;
-      loopsRef.current += 1;
-      setLoops(loopsRef.current);
-    },
-    [pageHeight],
-  );
+    const distanceFromEnd = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (distanceFromEnd > height * 3) {
+      extendingRef.current = false;
+      return;
+    }
+    if (extendingRef.current || height <= 0) {
+      return;
+    }
+    extendingRef.current = true;
+    loopsRef.current += 1;
+    setLoops(loopsRef.current);
+  }, []);
 
   const onLayout = useCallback((event) => {
     const nextHeight = event.nativeEvent.layout.height;
@@ -323,19 +351,37 @@ function HomeFeedScreen() {
     }
   }, []);
   useEffect(() => {
-    if (Platform.OS !== 'web' || soundOn || !isFocused) {
+    if (Platform.OS !== 'web' || !isFocused) {
       return undefined;
     }
-    const unlock = () => {
-      setSoundOn(true);
-      document.querySelectorAll('video').forEach((video) => {
+    const kick = () => {
+      if (!soundOnRef.current) {
+        soundOnRef.current = true;
+        setSoundOn(true);
+      }
+      document.querySelectorAll('video[data-feed-video]').forEach((video) => {
+        if (!video.getAttribute('src')) {
+          return;
+        }
         video.muted = false;
-        Promise.resolve(video.play()).catch(() => {});
+        Promise.resolve(video.play())
+          .then(() => {
+            const nextRect = video.getBoundingClientRect();
+            const nowVisible =
+              nextRect.top < window.innerHeight * 0.75 && nextRect.bottom > window.innerHeight * 0.25;
+            if (!nowVisible) {
+              video.pause();
+            }
+          })
+          .catch(() => {
+            video.muted = true;
+            Promise.resolve(video.play()).catch(() => {});
+          });
       });
     };
-    window.addEventListener('pointerdown', unlock, { capture: true, once: true });
-    return () => window.removeEventListener('pointerdown', unlock, { capture: true });
-  }, [isFocused, soundOn]);
+    window.addEventListener('pointerdown', kick, { capture: true });
+    return () => window.removeEventListener('pointerdown', kick, { capture: true });
+  }, [isFocused]);
   const activeIndex = Math.max(
     0,
     feedPages.findIndex((page) => page.feedKey === activeId),
@@ -357,9 +403,9 @@ function HomeFeedScreen() {
           />
         )}
         pagingEnabled
-        initialNumToRender={1}
-        maxToRenderPerBatch={1}
-        windowSize={3}
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={5}
         showsVerticalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={pageHeight}
@@ -372,9 +418,7 @@ function HomeFeedScreen() {
         })}
         onScroll={onFeedScroll}
         scrollEventThrottle={16}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        extraData={`${activeId}-${isFocused}-${loops}`}
+        extraData={`${activeId}-${isFocused}-${loops}-${soundOn}`}
       />
 
       <SafeAreaView style={styles.feedHeader} edges={['top']} pointerEvents="box-none">
