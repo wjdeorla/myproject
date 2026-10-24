@@ -215,7 +215,7 @@ function FeedPage({ item, isActive, loadVideo = true, soundOn = false, height, b
           autoPlay={isActive}
           loop
           preload={loadVideo ? 'auto' : 'none'}
-          style={[styles.feedVideoFrame, { width: pageWidth, height }]}
+          style={StyleSheet.flatten([styles.feedVideoFrame, { width: pageWidth, height }])}
         />
       ) : (
         <VideoView
